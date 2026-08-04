@@ -7,6 +7,27 @@
 
 
 
+
+# [v4.0]
+### Major new features
+- NEW: **Codec (compatibility) capture method** - routes screen capture through an H.264 encoder/decoder pair. Fixes black frames on TVs where the standard path returns empty frames (TCL, Amlogic, Hisense, etc.) and offloads scaling to the hardware codec. Selectable in mobile settings and the TV setup screen; auto-falls back to the standard method if it fails to start
+- NEW: **In-app update checker** - checks GitHub on launch and offers newer releases with a proper Update / Later / Remind-me dialog. Downloads through DownloadManager and installs via a FileProvider, and only nags once per version
+- NEW: **Capture Resolution** setting (Small / Medium / High) so low-RAM devices can capture smaller
+- NEW: **Home-screen widget** to toggle capture on/off with one tap (plus the existing quick-settings tile and Toggle shortcut)
+- Removed the WLED DDP "direct send" feature; the app now talks to Hyperion only
+
+### Stability fixes
+- Fixed a crash on fresh installs / unset preferences (Preferences caching a null into a ConcurrentHashMap)
+- Fixed reconnect never retrying at startup and a duplicate-socket leak on pause/resume
+- Fixed lights never clearing on stop (clear+disconnect was posted after the handler looper quit)
+- Fixed the Hyperion color command sending ARGB so Color.BLUE stayed blue and Color.BLACK actually cleared
+- Fixed Audio Visualization mode never requesting RECORD_AUDIO at runtime
+- Fixed NPE race when the connection thread is halted during startup
+- Fixed the service restarting as a zombie (START_NOT_STICKY)
+- Hardened reply framing against partial reads / corrupt sizes and made reconnect drop dead sockets
+- Clamped invalid frame-rate and priority preferences (division-by-zero / parse crashes)
+- Fixed the network scanner executor leak, wrong validation messages, and raw frame-rate label on mobile settings
+
 # [v3.1]
 ### Changes
 - NEW: In-app update checker - checks GitHub for newer tagged releases on launch and shows a dialog with the release notes (Update / Later / Remind me next launch). Downloads the APK via DownloadManager and launches the installer through a proper FileProvider. Only nags once per version.
