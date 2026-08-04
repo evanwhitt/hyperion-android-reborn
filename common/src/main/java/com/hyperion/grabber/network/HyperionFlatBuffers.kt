@@ -66,8 +66,13 @@ class HyperionFlatBuffers(address: String?, port: Int, priority: Int) : Hyperion
 
     @Throws(IOException::class)
     override fun setColor(color: Int, priority: Int, duration_ms: Int) {
+        // Android's Color ints are 0xAARRGGBB; Hyperion expects a 0xRRGGBB value.
+        // The alpha byte must be stripped, otherwise the alpha channel is
+        // misinterpreted as the red channel (e.g. Color.BLACK would turn the
+        // LEDs red instead of clearing them).
+        val rgb = toHyperionRgb(color)
         mBuilder.clear()
-        val colorOffset = Color.createColor(mBuilder, color, duration_ms)
+        val colorOffset = Color.createColor(mBuilder, rgb, duration_ms)
         val requestOffset = Request.createRequest(mBuilder, Command.Color, colorOffset)
         Request.finishRequestBuffer(mBuilder, requestOffset)
         sendRequest(mBuilder.dataBuffer())
@@ -120,26 +125,43 @@ class HyperionFlatBuffers(address: String?, port: Int, priority: Int) : Hyperion
         // Non-blocking reply consumption to keep socket clean
         // This is called separately and doesn't block frame sending
         try {
-            while (mSocket.getInputStream().available() >= 4) {
-                val header = ByteArray(4)
-                val read = mSocket.getInputStream().read(header, 0, 4)
-                if (read == 4) {
-                    val size = (header[0].toInt() and 0xFF shl 24) or
-                            (header[1].toInt() and 0xFF shl 16) or
-                            (header[2].toInt() and 0xFF shl 8) or
-                            (header[3].toInt() and 0xFF)
-                    if (size > 0 && mSocket.getInputStream().available() >= size) {
-                        val data = ByteArray(size)
-                        mSocket.getInputStream().read(data, 0, size)
-                    } else {
-                        break // Not enough data yet, will consume later
-                    }
-                } else {
-                    break
+            val input = mSocket.getInputStream()
+            while (input.available() >= HEADER_SIZE) {
+                val header = ByteArray(HEADER_SIZE)
+                var read = 0
+                while (read < HEADER_SIZE) {
+                    val n = input.read(header, read, HEADER_SIZE - read)
+                    if (n <= 0) return
+                    read += n
+                }
+                val size = (header[0].toInt() and 0xFF shl 24) or
+                        (header[1].toInt() and 0xFF shl 16) or
+                        (header[2].toInt() and 0xFF shl 8) or
+                        (header[3].toInt() and 0xFF)
+                if (size <= 0 || size > MAX_REPLY_SIZE) return // corrupt frame, stop consuming
+                if (input.available() < size) return // Not enough data yet, will consume later
+                val data = ByteArray(size)
+                var done = 0
+                while (done < size) {
+                    val n = input.read(data, done, size - done)
+                    if (n <= 0) return
+                    done += n
                 }
             }
         } catch (e: IOException) {
             // Ignore - non-blocking read
         }
+    }
+
+    companion object {
+        private const val HEADER_SIZE = 4
+        private const val MAX_REPLY_SIZE = 1 shl 16
+
+        /**
+         * Converts an Android ARGB color int (0xAARRGGBB) to the 0xRRGGBB value
+         * that Hyperion's color command expects, stripping the alpha byte.
+         */
+        @JvmStatic
+        fun toHyperionRgb(color: Int): Int = color and 0xFFFFFF
     }
 }

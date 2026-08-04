@@ -109,7 +109,8 @@ internal abstract class SettingsStepBaseFragment : GuidedStepSupportFragment() {
             try {
                 Integer.parseInt(it)
             } catch (ignored: Exception){
-                showToast(getString(CommonR.string.pref_error_invalid_field, it, getString(CommonR.string.pref_title_reconnect_delay)))
+                val title = findActionByIdRecursive(actionId)?.title?.toString() ?: actionId.toString()
+                showToast(getString(CommonR.string.pref_error_invalid_field, it, title))
                 throw AssertionError("$actionId is not a valid int")
             }
         }

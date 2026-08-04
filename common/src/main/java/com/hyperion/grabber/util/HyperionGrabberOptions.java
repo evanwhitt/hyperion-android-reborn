@@ -24,7 +24,7 @@ public class HyperionGrabberOptions {
         * that the minimal acceptable quality should be equal to or greater than.
         **/
         MINIMUM_IMAGE_PACKET_SIZE = horizontalLED * verticalLED * 3;
-        FRAME_RATE = frameRate;
+        FRAME_RATE = Math.max(1, frameRate); // Guard against division-by-zero / invalid config
         USE_AVERAGE_COLOR = useAvgColor;
 
         if (DEBUG) {

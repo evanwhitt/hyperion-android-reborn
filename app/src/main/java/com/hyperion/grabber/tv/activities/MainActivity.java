@@ -37,6 +37,7 @@ public class MainActivity extends LeanbackActivity implements ImageView.OnClickL
     public static final int REQUEST_MEDIA_PROJECTION = 1;
     public static final int REQUEST_INITIAL_SETUP = 2;
     private static final int REQUEST_NOTIFICATION_PERMISSION = 3;
+    private static final int REQUEST_AUDIO_PERMISSION = 4;
     public static final String BROADCAST_ERROR = "SERVICE_ERROR";
     public static final String BROADCAST_TAG = "SERVICE_STATUS";
     public static final String BROADCAST_FILTER = "SERVICE_FILTER";
@@ -90,6 +91,12 @@ public class MainActivity extends LeanbackActivity implements ImageView.OnClickL
         if (requestCode == REQUEST_NOTIFICATION_PERMISSION) {
             if (grantResults.length > 0 && grantResults[0] != PackageManager.PERMISSION_GRANTED) {
                 Toast.makeText(this, "Notification permission is needed for the foreground service", Toast.LENGTH_LONG).show();
+            }
+        } else if (requestCode == REQUEST_AUDIO_PERMISSION) {
+            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                requestScreenCapture();
+            } else {
+                Toast.makeText(this, "Microphone permission is needed for audio visualization mode", Toast.LENGTH_LONG).show();
             }
         }
     }
@@ -161,6 +168,14 @@ public class MainActivity extends LeanbackActivity implements ImageView.OnClickL
     }
     
     private void requestScreenCapture() {
+        // Audio visualization mode needs the microphone; ask before projection
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && isAudioOnlyMode()
+                && ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO)
+                != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(this,
+                    new String[]{Manifest.permission.RECORD_AUDIO}, REQUEST_AUDIO_PERMISSION);
+            return;
+        }
         try {
             Intent captureIntent = mMediaProjectionManager.createScreenCaptureIntent();
             startActivityForResult(captureIntent, REQUEST_MEDIA_PROJECTION);
@@ -168,6 +183,11 @@ public class MainActivity extends LeanbackActivity implements ImageView.OnClickL
             Log.e(TAG, "Failed to request screen capture: " + e.getMessage());
             mPermissionDeniedCount++;
         }
+    }
+
+    private boolean isAudioOnlyMode() {
+        Preferences prefs = new Preferences(getApplicationContext());
+        return prefs.getBoolean(com.hyperion.grabber.common.R.string.pref_key_audio_only_mode, false);
     }
 
     @Override

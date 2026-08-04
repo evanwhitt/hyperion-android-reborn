@@ -60,9 +60,7 @@ public class HyperionScreenService extends Service {
     private int mHorizontalLEDCount;
     private int mVerticalLEDCount;
     private boolean mSendAverageColor;
-    private boolean mWledEnabled;
-    private String mWledIp;
-    private HyperionScreenEncoder mHyperionEncoder;
+    private HyperionScreenEncoderBase mHyperionEncoder;
     private NotificationManager mNotificationManager;
     private String mStartError = null;
 
@@ -77,12 +75,12 @@ public class HyperionScreenService extends Service {
         @Override
         public void onConnectionError(int errorID, String error) {
             Log.e(TAG, "Connection error: " + (error != null ? error : "unknown"));
-            if (!mHasConnected) {
+            if (!mHasConnected && !mReconnectEnabled) {
                 mStartError = getResources().getString(R.string.error_server_unreachable);
                 haltStartup();
             } else if (mReconnectEnabled) {
                 Log.i(TAG, "Attempting automatic reconnect...");
-            } else {
+            } else if (mHasConnected) {
                 mStartError = getResources().getString(R.string.error_connection_lost);
                 stopSelf();
             }
@@ -143,33 +141,30 @@ public class HyperionScreenService extends Service {
         mVerticalLEDCount = prefs.getInt(R.string.pref_key_y_led);
         mSendAverageColor = prefs.getBoolean(R.string.pref_key_use_avg_color);
         mReconnectEnabled = prefs.getBoolean(R.string.pref_key_reconnect);
-        mWledEnabled = prefs.getBoolean(R.string.pref_key_wled_enabled);
-        mWledIp = prefs.getString(R.string.pref_key_wled_ip, null);
         int delay = prefs.getInt(R.string.pref_key_reconnect_delay);
 
-        if (!mWledEnabled) {
-            if (host == null || Objects.equals(host, "0.0.0.0") || Objects.equals(host, "")) {
-                mStartError = getResources().getString(R.string.error_empty_host);
-                return false;
-            }
-            if (port == -1) {
-                mStartError = getResources().getString(R.string.error_empty_port);
-                return false;
-            }
-        } else {
-            if (mWledIp == null || Objects.equals(mWledIp, "0.0.0.0") || Objects.equals(mWledIp, "")) {
-                mStartError = "WLED IP should not be empty";
-                return false;
-            }
+        if (host == null || Objects.equals(host, "0.0.0.0") || Objects.equals(host, "")) {
+            mStartError = getResources().getString(R.string.error_empty_host);
+            return false;
         }
-        
+        if (port == -1) {
+            mStartError = getResources().getString(R.string.error_empty_port);
+            return false;
+        }
+
         if (mHorizontalLEDCount <= 0 || mVerticalLEDCount <= 0) {
             mStartError = getResources().getString(R.string.error_invalid_led_counts);
             return false;
         }
+
+        int priorityValue = 100;
+        try {
+            priorityValue = Integer.parseInt(priority);
+        } catch (NumberFormatException e) {
+            Log.e(TAG, "Invalid priority value: " + priority);
+        }
         mMediaProjectionManager = (MediaProjectionManager) getSystemService(Context.MEDIA_PROJECTION_SERVICE);
-        int priorityValue = Integer.parseInt(priority);
-        mHyperionThread = new HyperionThread(mReceiver, host, port, priorityValue, mReconnectEnabled, delay, mWledEnabled, mWledIp);
+        mHyperionThread = new HyperionThread(mReceiver, host, port, priorityValue, mReconnectEnabled, delay);
         mHyperionThread.start();
         mStartError = null;
         return true;
@@ -226,16 +221,18 @@ public class HyperionScreenService extends Service {
                     break;
                 case ACTION_STOP:
                     stopScreenRecord();
+                    stopSelf();
                     break;
                 case GET_STATUS:
                     notifyActivity();
                     break;
                 case ACTION_EXIT:
+                    stopScreenRecord();
                     stopSelf();
                     break;
             }
         }
-        return START_STICKY;
+        return START_NOT_STICKY;
     }
 
     @Nullable
@@ -382,7 +379,14 @@ public class HyperionScreenService extends Service {
             mStartError = "Failed to initialize media projection manager";
             return;
         }
-        
+
+        if (mHyperionThread == null) {
+            Log.e(TAG, "HyperionThread is null, cannot start screen recording");
+            mStartError = getResources().getString(R.string.error_server_unreachable);
+            return;
+        }
+        final HyperionThread thread = mHyperionThread;
+
         final int resultCode = intent.getIntExtra(EXTRA_RESULT_CODE, 0);
         final MediaProjection projection = mMediaProjectionManager.getMediaProjection(resultCode, intent);
         
@@ -408,16 +412,41 @@ public class HyperionScreenService extends Service {
         HyperionGrabberOptions options = new HyperionGrabberOptions(
                 mHorizontalLEDCount, mVerticalLEDCount, mFrameRate, mSendAverageColor);
          
-         if (DEBUG) Log.v(TAG, "Creating encoder: " + metrics.widthPixels + "x" + metrics.heightPixels);
-         mHyperionEncoder = new HyperionScreenEncoder(
-                 mHyperionThread.getReceiver(),
-                 projection, 
-                 metrics.widthPixels, 
-                 metrics.heightPixels,
-                 metrics.densityDpi, 
-                 options,
-                 this);
-         mHyperionEncoder.sendStatus();
+        if (DEBUG) Log.v(TAG, "Creating encoder: " + metrics.widthPixels + "x" + metrics.heightPixels);
+
+        // "codec" method works around devices that return black frames when a
+        // VirtualDisplay feeds an ImageReader directly (TCL, Amlogic, etc.).
+        Preferences prefs = new Preferences(getBaseContext());
+        String captureMethod = prefs.getString(R.string.pref_key_capture_method, "imagereader");
+
+        if ("codec".equals(captureMethod)) {
+            try {
+                mHyperionEncoder = new HyperionCodecScreenEncoder(
+                        thread.getReceiver(),
+                        projection,
+                        metrics.widthPixels,
+                        metrics.heightPixels,
+                        metrics.densityDpi,
+                        options,
+                        this);
+                Log.i(TAG, "Using codec capture method");
+            } catch (Exception e) {
+                Log.e(TAG, "Codec capture failed to initialize, falling back to ImageReader: " + e.getMessage());
+                mHyperionEncoder = null;
+            }
+        }
+
+        if (mHyperionEncoder == null) {
+            mHyperionEncoder = new HyperionScreenEncoder(
+                    thread.getReceiver(),
+                    projection,
+                    metrics.widthPixels,
+                    metrics.heightPixels,
+                    metrics.densityDpi,
+                    options,
+                    this);
+        }
+        mHyperionEncoder.sendStatus();
      }
 
     private void stopScreenRecord() {

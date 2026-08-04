@@ -27,8 +27,12 @@ public class HyperionScannerTask {
 
     public void execute() {
         executor.execute(() -> {
-            String result = doInBackground();
-            mainHandler.post(() -> onPostExecute(result));
+            try {
+                String result = doInBackground();
+                mainHandler.post(() -> onPostExecute(result));
+            } finally {
+                shutdown();
+            }
         });
     }
     

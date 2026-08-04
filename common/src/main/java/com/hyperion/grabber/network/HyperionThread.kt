@@ -2,10 +2,8 @@ package com.hyperion.grabber.common.network
 
 import com.hyperion.grabber.common.HyperionScreenService.HyperionThreadBroadcaster
 import java.io.IOException
-import java.net.InetAddress
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
-import java.util.concurrent.Future
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
@@ -16,9 +14,7 @@ class HyperionThread(
     private val port: Int,
     private val priority: Int,
     reconnect: Boolean,
-    delaySeconds: Int,
-    private val wledEnabled: Boolean,
-    private val wledIp: String?
+    delaySeconds: Int
 ) : Thread(TAG) {
 
     private val reconnectDelayMs = (delaySeconds * 1000).toLong()
@@ -30,11 +26,12 @@ class HyperionThread(
     private val latestFrame = AtomicReference<FrameData>()
     private var lastFrameNumber = 0L
     private var sendTaskScheduled = AtomicBoolean(false)
+    private val paused = AtomicBoolean(false)
 
     val receiver: HyperionThreadListener = object : HyperionThreadListener {
         override fun sendFrame(data: ByteArray, width: Int, height: Int) {
             val client = clientRef.get()
-            if (client == null || !client.isConnected()) return
+            if (paused.get() || client == null || !client.isConnected()) return
 
             ++lastFrameNumber
             latestFrame.set(FrameData(data, width, height, lastFrameNumber))
@@ -109,20 +106,29 @@ class HyperionThread(
     }
 
     fun pauseConnection() {
+        paused.set(true)
         latestFrame.set(null)
         lastFrameNumber = 0
         sendTaskScheduled.set(false)
-        val client = clientRef.getAndSet(null)
-        if (client != null) {
-            try { client.disconnect() } catch (ignored: IOException) {}
+
+        // Stop the connect() retry loop so it can't create a duplicate client while paused.
+        if (isAlive && !connected.get()) {
+            interrupt()
         }
-        connected.set(false)
     }
 
     fun resumeConnection() {
         if (networkExecutor.isShutdown) return
+        paused.set(false)
         networkExecutor.submit {
             try {
+                val existing = clientRef.get()
+                if (existing != null && existing.isConnected()) {
+                    connected.set(true)
+                    callback.onConnected()
+                    return@submit
+                }
+
                 val client = createClient()
                 if (client.isConnected()) {
                     clientRef.set(client)
@@ -138,15 +144,11 @@ class HyperionThread(
     }
 
     private fun createClient(): HyperionClient {
-        return if (wledEnabled && wledIp != null) {
-            WledDdpClient(InetAddress.getByName(wledIp), 4048)
-        } else {
-            HyperionFlatBuffers(host, port, priority)
-        }
+        return HyperionFlatBuffers(host, port, priority)
     }
 
     private fun connect() {
-        do {
+        while (reconnectEnabled.get() && !isInterrupted && !paused.get()) {
             try {
                 val client = createClient()
                 if (client.isConnected()) {
@@ -157,22 +159,23 @@ class HyperionThread(
                 }
             } catch (e: IOException) {
                 callback.onConnectionError(e.hashCode(), e.message ?: "Unknown error")
-                if (reconnectEnabled.get() && connected.get()) {
-                    sleepSafe(reconnectDelayMs)
-                }
+                if (!reconnectEnabled.get()) return
             }
-        } while (reconnectEnabled.get() && connected.get())
+            sleepSafe(reconnectDelayMs)
+        }
     }
 
     private fun handleError(e: IOException) {
         callback.onConnectionError(e.hashCode(), e.message ?: "Unknown error")
 
-        if (reconnectEnabled.get() && connected.get()) {
+        if (reconnectEnabled.get() && connected.get() && !paused.get()) {
             sleepSafe(reconnectDelayMs)
+            if (!connected.get() || isInterrupted || paused.get()) return
             try {
                 val newClient = createClient()
                 if (newClient.isConnected()) {
                     clientRef.set(newClient)
+                    callback.onConnected()
                 }
             } catch (ignored: IOException) {
             }
@@ -183,8 +186,6 @@ class HyperionThread(
         try {
             sleep(ms)
         } catch (e: InterruptedException) {
-            reconnectEnabled.set(false)
-            connected.set(false)
             currentThread().interrupt()
         }
     }

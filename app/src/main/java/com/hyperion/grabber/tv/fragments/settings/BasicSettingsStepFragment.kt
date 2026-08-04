@@ -146,6 +146,29 @@ internal class BasicSettingsStepFragment : SettingsStepBaseFragment() {
                 .checked(prefs.getBoolean(CommonR.string.pref_key_use_avg_color))
                 .build()
 
+        val captureMethodLabels = resources.getStringArray(CommonR.array.pref_list_capture_method)
+        val captureMethodValues = resources.getStringArray(CommonR.array.pref_list_capture_method_values)
+
+        val selectedCaptureMethod = prefs.getString(CommonR.string.pref_key_capture_method, "imagereader")
+
+        val captureMethodDescription =
+                if (prefs.contains(CommonR.string.pref_key_capture_method)) {
+                    val idx = captureMethodValues.indexOf(selectedCaptureMethod)
+                    if (idx in captureMethodLabels.indices) captureMethodLabels[idx] else getString(CommonR.string.pref_summary_capture_method)
+                } else {
+                    getString(CommonR.string.pref_summary_capture_method)
+                }
+
+        val captureMethod = radioListAction(
+                ACTION_CAPTURE_METHOD,
+                getString(CommonR.string.pref_title_capture_method),
+                captureMethodDescription,
+                ACTION_CAPTURE_METHOD_SET_ID,
+                captureMethodLabels,
+                captureMethodValues,
+                selectedCaptureMethod
+        )
+
         actions.add(enterHost)
         actions.add(enterPort)
         actions.add(enterHorizontalLEDCount)
@@ -156,6 +179,7 @@ internal class BasicSettingsStepFragment : SettingsStepBaseFragment() {
         actions.add(reconnectGroup)
         actions.add(captureRate)
         actions.add(averageColor)
+        actions.add(captureMethod)
 
     }
 
@@ -182,6 +206,7 @@ internal class BasicSettingsStepFragment : SettingsStepBaseFragment() {
                 val startOnBootEnabled = findActionById(ACTION_START_ON_BOOT).isChecked
                 val priority = assertIntValue(ACTION_MESSAGE_PRIORITY)
                 val frameRate = assertSubActionValue(ACTION_CAPTURE_RATE, String::class.java)
+                val captureMethod = assertSubActionValue(ACTION_CAPTURE_METHOD, String::class.java)
                 val reconnect = findSubActionById(ACTION_RECONNECT)!!.isChecked
                 val reconnectDelay = assertIntValue(ACTION_RECONNECT_DELAY)
                 val useAverageColor = findActionById(ACTION_AVERAGE_COLOR)!!.isChecked
@@ -196,6 +221,7 @@ internal class BasicSettingsStepFragment : SettingsStepBaseFragment() {
                 prefs.putString(CommonR.string.pref_key_framerate, frameRate)
                 prefs.putBoolean(CommonR.string.pref_key_reconnect, reconnect)
                 prefs.putBoolean(CommonR.string.pref_key_use_avg_color, useAverageColor)
+                prefs.putString(CommonR.string.pref_key_capture_method, captureMethod)
 
                 val activity = activity
                 activity?.setResult(Activity.RESULT_OK)
@@ -269,6 +295,8 @@ internal class BasicSettingsStepFragment : SettingsStepBaseFragment() {
         private const val ACTION_CAPTURE_RATE = 400L
         private const val ACTION_CAPTURE_RATE_SET_ID = 1500
         private const val ACTION_AVERAGE_COLOR = 600L
+        private const val ACTION_CAPTURE_METHOD = 610L
+        private const val ACTION_CAPTURE_METHOD_SET_ID = 1600
 
         private const val ACTION_TEST = 700L
 

@@ -5,6 +5,31 @@
 
 
 
+
+
+# [v3.1]
+### Changes
+- NEW: "Capture Method" setting with a **Codec (compatibility)** option that routes screen capture through an H.264 encoder/decoder pair (the same trick scrcpy uses). This fixes black frames on TVs where the VirtualDisplay → ImageReader path returns empty frames (TCL, Amlogic S905X5M / Ugoos, Hisense, etc.). Available in both the mobile settings and the TV setup screen; falls back to the standard method automatically if it fails to initialize.
+- Declared WRITE_SECURE_SETTINGS in the manifest so ADB commands like `pm grant com.hyperion.grabber android.permission.WRITE_SECURE_SETTINGS` can run (TCL Tguard workaround)
+- Removed the WLED DDP "direct send" feature (settings, strings, client) - the app now only talks to a Hyperion instance
+- Removed dead/never-invoked update-checker code that referenced an undeclared FileProvider and a stale repo URL
+- Reconnect now actually retries when the host is unreachable at startup (previously it gave up immediately)
+- Screen on/off pause keeps the existing socket instead of disconnecting and leaking a duplicate client
+- Foreground service now returns START_NOT_STICKY so it can't restart as a zombie with no capture intent
+
+### Fixed
+- Color command sent Android's ARGB value directly; the alpha byte landed in the red channel, so Color.BLUE showed red and Color.BLACK (clear) showed red. Now masked to 0xRRGGBB
+- Lights were never cleared / socket never closed on stop: clear+disconnect was posted to a handler after its looper had already quit
+- Possible NPE / crash when the connection thread was halted during startup while screen capture was starting
+- Reconnect retry could leave a second socket open (leak) after pausing
+- Audio Visualization mode never worked on Android 6+ because RECORD_AUDIO was never requested at runtime (now requested before capture)
+- Scanner executor thread was never shut down after a scan finished; scan is now also cancelled if the activity is destroyed
+- Partial TCP reads / corrupt reply headers could desync reply framing and allocate huge buffers; reply reader is now robust and size-limited
+- Invalid or zero frame-rate preference caused a division-by-zero crash; now clamped
+- Misconfigured priority preference caused a NumberFormatException crash; now falls back to default
+- Settings screens showed "Reconnect Delay" in validation errors for every field; now shows the actual field name
+- Mobile settings showed the raw frame-rate value ("30") instead of the label ("30 fps")
+
 # [v3.0]
 ### Changes
 - Frame processing pipeline optimization with ring buffer zero-copy

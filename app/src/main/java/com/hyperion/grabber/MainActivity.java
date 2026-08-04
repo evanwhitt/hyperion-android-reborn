@@ -36,6 +36,7 @@ public class MainActivity extends AppCompatActivity implements ImageView.OnClick
         ImageView.OnFocusChangeListener {
     public static final int REQUEST_MEDIA_PROJECTION = 1;
     private static final int REQUEST_NOTIFICATION_PERMISSION = 2;
+    private static final int REQUEST_AUDIO_PERMISSION = 3;
     private static final String TAG = "DEBUG";
     private boolean mRecorderRunning = false;
     private static MediaProjectionManager mMediaProjectionManager;
@@ -150,6 +151,14 @@ public class MainActivity extends AppCompatActivity implements ImageView.OnClick
     }
     
     private void requestScreenCapture() {
+        // Audio visualization mode needs the microphone; ask before projection
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && isAudioOnlyMode()
+                && ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO)
+                != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(this,
+                    new String[]{Manifest.permission.RECORD_AUDIO}, REQUEST_AUDIO_PERMISSION);
+            return;
+        }
         try {
             Intent captureIntent = mMediaProjectionManager.createScreenCaptureIntent();
             startActivityForResult(captureIntent, REQUEST_MEDIA_PROJECTION);
@@ -163,6 +172,12 @@ public class MainActivity extends AppCompatActivity implements ImageView.OnClick
             Toast.makeText(this, "Failed to request screen recording: " + e.getMessage(), Toast.LENGTH_LONG).show();
             setImageViews(false, true);
         }
+    }
+
+    private boolean isAudioOnlyMode() {
+        com.hyperion.grabber.common.util.Preferences prefs =
+                new com.hyperion.grabber.common.util.Preferences(this);
+        return prefs.getBoolean(com.hyperion.grabber.common.R.string.pref_key_audio_only_mode, false);
     }
 
     @Override
@@ -191,6 +206,12 @@ public class MainActivity extends AppCompatActivity implements ImageView.OnClick
         if (requestCode == REQUEST_NOTIFICATION_PERMISSION) {
             if (grantResults.length > 0 && grantResults[0] != PackageManager.PERMISSION_GRANTED) {
                 Toast.makeText(this, "Notification permission is needed for the foreground service", Toast.LENGTH_LONG).show();
+            }
+        } else if (requestCode == REQUEST_AUDIO_PERMISSION) {
+            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                requestScreenCapture();
+            } else {
+                Toast.makeText(this, "Microphone permission is needed for audio visualization mode", Toast.LENGTH_LONG).show();
             }
         }
     }

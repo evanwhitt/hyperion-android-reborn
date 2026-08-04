@@ -79,25 +79,20 @@ abstract class HyperionScreenEncoderBase {
     }
 
     protected void clearAndDisconnect() {
-        // Use Handler instead of creating a new Thread - more efficient
-        mHandler.postDelayed(() -> {
+        // Runs the clear/disconnect and then safely stops the handler looper
+        // so the queued work is not dropped.
+        mHandler.post(() -> {
             try {
                 mListener.clear();
                 mListener.disconnect();
             } catch (Exception e) {
                 Log.e(TAG, "Error clearing and disconnecting: " + e.getMessage());
+            } finally {
+                mHandler.getLooper().quitSafely();
             }
-        }, CLEAR_DELAY_MS);
+        });
     }
     
-    private static void sleep(long ms) {
-        try {
-            Thread.sleep(ms);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        }
-    }
-
     public boolean isCapturing() {
         return mIsCapturing;
     }

@@ -30,14 +30,7 @@ class HyperionGrabberTileService : TileService() {
             val running = intent.getBooleanExtra(HyperionScreenService.BROADCAST_TAG, false)
             val error = intent.getStringExtra(HyperionScreenService.BROADCAST_ERROR)
             tile.state = if (running) Tile.STATE_ACTIVE else Tile.STATE_INACTIVE
-            
-            // Helpful feature: Show WLED / Hyperion text on tile subtitle if available (API 29+)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                val prefs = Preferences(applicationContext)
-                val wledEnabled = prefs.getBoolean(com.hyperion.grabber.common.R.string.pref_key_wled_enabled)
-                tile.subtitle = if (wledEnabled) "WLED" else "Hyperion"
-            }
-            
+
             tile.updateTile()
             if (error != null) {
                 Toast.makeText(baseContext, error, Toast.LENGTH_LONG).show()
@@ -66,13 +59,6 @@ class HyperionGrabberTileService : TileService() {
         } else {
             val tile = qsTile ?: return
             tile.state = Tile.STATE_INACTIVE
-            
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                val prefs = Preferences(applicationContext)
-                val wledEnabled = prefs.getBoolean(com.hyperion.grabber.common.R.string.pref_key_wled_enabled)
-                tile.subtitle = if (wledEnabled) "WLED" else "Hyperion"
-            }
-            
             tile.updateTile()
         }
     }
@@ -133,12 +119,10 @@ class HyperionGrabberTileService : TileService() {
      */
     private fun startSetupIfNeeded(): Boolean {
         val preferences = Preferences(applicationContext)
-        val wledEnabled = preferences.getBoolean(com.hyperion.grabber.common.R.string.pref_key_wled_enabled)
         val hostMissing = TextUtils.isEmpty(preferences.getString(com.hyperion.grabber.common.R.string.pref_key_host, null))
         val portMissing = preferences.getInt(com.hyperion.grabber.common.R.string.pref_key_port, -1) == -1
-        val wledIpMissing = TextUtils.isEmpty(preferences.getString(com.hyperion.grabber.common.R.string.pref_key_wled_ip, null))
 
-        if ((!wledEnabled && (hostMissing || portMissing)) || (wledEnabled && wledIpMissing)) {
+        if (hostMissing || portMissing) {
             val settingsIntent = Intent(this, SettingsActivity::class.java).apply {
                 putExtra(SettingsActivity.EXTRA_SHOW_TOAST_KEY, SettingsActivity.EXTRA_SHOW_TOAST_SETUP_REQUIRED_FOR_QUICK_TILE)
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)

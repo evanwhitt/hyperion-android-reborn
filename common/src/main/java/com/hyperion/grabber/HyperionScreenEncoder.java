@@ -468,8 +468,7 @@ public final class HyperionScreenEncoder extends HyperionScreenEncoderBase {
         mFrameCount = 0;
         mAnimationSync = null;
         mPreferences = null;
-        
-        mHandler.getLooper().quit();
+
         clearAndDisconnect();
         
         if (mImageReader != null) {

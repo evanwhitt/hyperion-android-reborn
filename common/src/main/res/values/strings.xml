@@ -7,6 +7,10 @@
     <item>30 fps</item>
     <item>60 fps</item>
   </string-array>
+  <string-array name="pref_list_capture_method">
+    <item>Standard (ImageReader)</item>
+    <item>Codec (compatibility)</item>
+  </string-array>
   <string name="app_name">Hyperion Grabber</string>
   <string name="pref_title">Settings</string>
   <string name="enabled">Enabled</string>
@@ -33,11 +37,6 @@
   <string name="pref_summary_host">Host your hyperion instance is running on</string>
   <string name="pref_title_port">Hyperion FlatBuffers Port</string>
   <string name="pref_summary_port">The FlatBuffers port of your hyperion instance (usually 19400)</string>
-  
-  <string name="pref_title_wled_enabled">Enable WLED DDP</string>
-  <string name="pref_summary_wled_enabled">Send pixel data directly to a WLED instance using DDP</string>
-  <string name="pref_title_wled_ip">WLED IP Address</string>
-  <string name="pref_summary_wled_ip">The IP address of your WLED instance</string>
   <string name="pref_title_y_led">Vertical LED Count</string>
   <string name="pref_summary_y_led">The vertical count of LEDs on your hardware</string>
   <string name="pref_title_x_led">Horizontal LED Count</string>
@@ -52,6 +51,8 @@
   <string name="pref_group_capturing">Capturing</string>
   <string name="pref_title_framerate">Capture Rate</string>
   <string name="pref_summary_framerate">Frames per second in which to send data to hyperion</string>
+  <string name="pref_title_capture_method">Capture Method</string>
+  <string name="pref_summary_capture_method">If the screen is black while content is playing, switch to \'Codec (compatibility)\'</string>
   <!-- General settings -->
   <string name="pref_group_general">General</string>
   <string name="pref_summary_boot">Start screen grabber when device starts</string>

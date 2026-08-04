@@ -22,6 +22,7 @@ public class NetworkScanActivity extends LeanbackActivity implements HyperionSca
     private Button manualSetupButton;
     private ProgressBar progressBar;
     private TextView descriptionText;
+    private HyperionScannerTask scannerTask;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -39,6 +40,15 @@ public class NetworkScanActivity extends LeanbackActivity implements HyperionSca
     }
 
     @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        if (scannerTask != null) {
+            scannerTask.shutdown();
+            scannerTask = null;
+        }
+    }
+
+    @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
         if (requestCode == MainActivity.REQUEST_INITIAL_SETUP){
@@ -53,7 +63,8 @@ public class NetworkScanActivity extends LeanbackActivity implements HyperionSca
     public void onClick(View v){
         if (v.getId() == R.id.startScanButton){
             if (!isScanning){
-                new HyperionScannerTask(this).execute();
+                scannerTask = new HyperionScannerTask(this);
+                scannerTask.execute();
             }
 
         } else if (v.getId() == R.id.manualSetupButton){
