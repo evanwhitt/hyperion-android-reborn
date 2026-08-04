@@ -4,6 +4,7 @@ import com.hyperion.grabber.common.util.HyperionGrabberOptions;
 
 import org.junit.Test;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 public class HyperionGrabberOptionsTest {
@@ -45,5 +46,30 @@ public class HyperionGrabberOptionsTest {
 
         HyperionGrabberOptions negative = new HyperionGrabberOptions(60, 34, -5, false);
         assertTrue("frame rate must be clamped to at least 1", negative.getFrameRate() >= 1);
+    }
+
+    @Test
+    public void captureResolution_tiersScaleMaxDimension() {
+        HyperionGrabberOptions low = new HyperionGrabberOptions(60, 34, 30, false, 0);
+        HyperionGrabberOptions medium = new HyperionGrabberOptions(60, 34, 30, false, 1);
+        HyperionGrabberOptions high = new HyperionGrabberOptions(60, 34, 30, false, 2);
+
+        assertTrue("codec: low < medium", low.getCodecMaxDimension() < medium.getCodecMaxDimension());
+        assertTrue("codec: medium < high", medium.getCodecMaxDimension() < high.getCodecMaxDimension());
+        assertTrue("imagereader: low < medium", low.getImageReaderMaxDimension() < medium.getImageReaderMaxDimension());
+        assertTrue("imagereader: medium < high", medium.getImageReaderMaxDimension() < high.getImageReaderMaxDimension());
+    }
+
+    @Test
+    public void captureResolution_outOfRangeIsClamped() {
+        HyperionGrabberOptions negative = new HyperionGrabberOptions(60, 34, 30, false, -1);
+        HyperionGrabberOptions huge = new HyperionGrabberOptions(60, 34, 30, false, 99);
+        HyperionGrabberOptions low = new HyperionGrabberOptions(60, 34, 30, false, 0);
+        HyperionGrabberOptions high = new HyperionGrabberOptions(60, 34, 30, false, 2);
+
+        // Below-range clamps to the smallest tier, above-range to the largest
+        assertEquals(low.getCodecMaxDimension(), negative.getCodecMaxDimension());
+        assertEquals(high.getCodecMaxDimension(), huge.getCodecMaxDimension());
+        assertTrue("clamped values must be valid", negative.getImageReaderMaxDimension() > 0);
     }
 }

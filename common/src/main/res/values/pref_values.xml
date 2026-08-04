@@ -39,6 +39,14 @@
         <item>codec</item>
     </string-array>
 
+    <string name="pref_key_capture_resolution" translatable="false">pref_key_capture_resolution</string>
+    <string name="pref_default_capture_resolution" translatable="false">medium</string>
+    <string-array name="pref_list_capture_resolution_values" translatable="false">
+        <item>low</item>
+        <item>medium</item>
+        <item>high</item>
+    </string-array>
+
     <string name="pref_key_use_avg_color" translatable="false">pref_key_use_avg_color</string>
     <bool name="pref_default_use_avg_color" translatable="false">false</bool>
 

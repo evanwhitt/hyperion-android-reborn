@@ -19,6 +19,8 @@
   <string name="guidedstep_required">Required</string>
   <!--This is the title for a custom launcher activity - hence including the app's name, with the action noted (toggle the grabber)-->
   <string name="toggle_activity_label">Hyperion Grabber (Toggle)</string>
+  <string name="widget_toggle_label">Hyperion Grabber (Toggle)</string>
+  <string name="widget_toggle_description">Toggles Hyperion screen capture on and off</string>
   <string name="settings">Settings</string>
   <string name="quick_tile_label">Hyperion Grabber</string>
   <string name="quick_tile_toast_setup_required">Please complete the setup in the app first</string>

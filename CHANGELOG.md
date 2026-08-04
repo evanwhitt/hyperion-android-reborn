@@ -9,7 +9,9 @@
 
 # [v3.1]
 ### Changes
-- NEW: "Capture Method" setting with a **Codec (compatibility)** option that routes screen capture through an H.264 encoder/decoder pair (the same trick scrcpy uses). This fixes black frames on TVs where the VirtualDisplay → ImageReader path returns empty frames (TCL, Amlogic S905X5M / Ugoos, Hisense, etc.). Available in both the mobile settings and the TV setup screen; falls back to the standard method automatically if it fails to initialize.
+- NEW: "Capture Resolution" setting (Small / Medium / High) - lets low-RAM devices use a smaller capture size. Restart the grabber to apply. Available in mobile settings and the TV setup screen
+- NEW: 1x1 home-screen widget to toggle screen capture on/off with a single tap (add it via your launcher; works alongside the existing quick-settings tile and the "Hyperion Grabber (Toggle)" shortcut)
+- NEW: "Capture Method" setting with a **Codec (compatibility)** option that routes screen capture through an H.264 encoder/decoder pair (the same trick scrcpy uses). This fixes black frames on TVs where the VirtualDisplay → ImageReader path returns empty frames (TCL, Amlogic S905X5M / Ugoos, Hisense, etc.). Falls back to the standard method automatically if it fails to initialize
 - Declared WRITE_SECURE_SETTINGS in the manifest so ADB commands like `pm grant com.hyperion.grabber android.permission.WRITE_SECURE_SETTINGS` can run (TCL Tguard workaround)
 - Removed the WLED DDP "direct send" feature (settings, strings, client) - the app now only talks to a Hyperion instance
 - Removed dead/never-invoked update-checker code that referenced an undeclared FileProvider and a stale repo URL

@@ -64,6 +64,7 @@ public final class HyperionScreenEncoder extends HyperionScreenEncoderBase {
     private AudioVisualizerController mAudioVisualizer;
     private boolean mAudioOnlyMode = false;
     private boolean mAnimationAutoEnabled = false;
+    private final int mMaxCaptureDimension;
     
     private final Runnable mCaptureRunnable = new Runnable() {
         @Override
@@ -119,8 +120,9 @@ public final class HyperionScreenEncoder extends HyperionScreenEncoderBase {
                           HyperionGrabberOptions options,
                           Context context) {
         super(listener, projection, screenWidth, screenHeight, density, options);
-        
+
         mFrameIntervalMs = 1000L / mFrameRate;
+        mMaxCaptureDimension = options.getImageReaderMaxDimension();
         initCaptureDimensions();
         
         if (context != null) {
@@ -150,8 +152,10 @@ public final class HyperionScreenEncoder extends HyperionScreenEncoderBase {
     }
     
     private void initCaptureDimensions() {
-        int w = Math.max(4, Math.min(getGrabberWidth(), 128));
-        int h = Math.max(4, Math.min(getGrabberHeight(), 72));
+        final int maxW = mMaxCaptureDimension;
+        final int maxH = Math.max(4, Math.round(maxW * (float) getGrabberHeight() / Math.max(1, getGrabberWidth())));
+        int w = Math.max(4, Math.min(getGrabberWidth(), maxW));
+        int h = Math.max(4, Math.min(getGrabberHeight(), maxH));
         mCaptureWidth = w & ~1;
         mCaptureHeight = h & ~1;
     }

@@ -13,9 +13,19 @@ public class HyperionGrabberOptions {
     private final int MINIMUM_IMAGE_PACKET_SIZE; // how many bytes the minimal acceptable image quality is
     private final int FRAME_RATE;
     private final boolean USE_AVERAGE_COLOR;
+    private final int CAPTURE_SIZE_INDEX; // 0 = small, 1 = medium, 2 = high
     private final int BLACK_THRESHOLD = 5; // The limit each RGB value must be under to be considered a black pixel [0-255]
 
+    /** Capture size tiers (index -> max capture dimension). */
+    private static final int[] CAPTURE_SIZE_IMAGEREADER = { 32, 64, 128 };
+    private static final int[] CAPTURE_SIZE_CODEC = { 320, 640, 1280 };
+
     public HyperionGrabberOptions(int horizontalLED, int verticalLED, int frameRate, boolean useAvgColor) {
+        this(horizontalLED, verticalLED, frameRate, useAvgColor, 1);
+    }
+
+    public HyperionGrabberOptions(int horizontalLED, int verticalLED, int frameRate, boolean useAvgColor,
+                                  int captureSizeIndex) {
 
         /*
         * To determine the minimal acceptable image packet size we take the count of the width & height
@@ -26,6 +36,7 @@ public class HyperionGrabberOptions {
         MINIMUM_IMAGE_PACKET_SIZE = horizontalLED * verticalLED * 3;
         FRAME_RATE = Math.max(1, frameRate); // Guard against division-by-zero / invalid config
         USE_AVERAGE_COLOR = useAvgColor;
+        CAPTURE_SIZE_INDEX = Math.max(0, Math.min(2, captureSizeIndex));
 
         if (DEBUG) {
             Log.d(TAG, "Horizontal LED Count: " + String.valueOf(horizontalLED));
@@ -37,6 +48,12 @@ public class HyperionGrabberOptions {
     public int getFrameRate() { return FRAME_RATE; }
 
     public boolean useAverageColor() { return USE_AVERAGE_COLOR; }
+
+    /** Max capture dimension for the ImageReader capture path. */
+    public int getImageReaderMaxDimension() { return CAPTURE_SIZE_IMAGEREADER[CAPTURE_SIZE_INDEX]; }
+
+    /** Max capture dimension for the MediaCodec capture path. */
+    public int getCodecMaxDimension() { return CAPTURE_SIZE_CODEC[CAPTURE_SIZE_INDEX]; }
 
     /**
     * returns the divisor best suited to be used to meet the minimum image packet size

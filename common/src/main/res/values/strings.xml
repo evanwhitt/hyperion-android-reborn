@@ -11,6 +11,11 @@
     <item>Standard (ImageReader)</item>
     <item>Codec (compatibility)</item>
   </string-array>
+  <string-array name="pref_list_capture_resolution">
+    <item>Small</item>
+    <item>Medium</item>
+    <item>High</item>
+  </string-array>
   <string name="app_name">Hyperion Grabber</string>
   <string name="pref_title">Settings</string>
   <string name="enabled">Enabled</string>
@@ -53,6 +58,8 @@
   <string name="pref_summary_framerate">Frames per second in which to send data to hyperion</string>
   <string name="pref_title_capture_method">Capture Method</string>
   <string name="pref_summary_capture_method">If the screen is black while content is playing, switch to \'Codec (compatibility)\'</string>
+  <string name="pref_title_capture_resolution">Capture Resolution</string>
+  <string name="pref_summary_capture_resolution">Small is best for low-RAM devices. A restart is needed to apply changes</string>
   <!-- General settings -->
   <string name="pref_group_general">General</string>
   <string name="pref_summary_boot">Start screen grabber when device starts</string>

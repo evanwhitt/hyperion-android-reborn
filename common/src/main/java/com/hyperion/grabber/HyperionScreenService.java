@@ -408,15 +408,16 @@ public class HyperionScreenService extends Service {
         sMediaProjection = projection;
         final DisplayMetrics metrics = new DisplayMetrics();
         window.getDefaultDisplay().getRealMetrics(metrics);
-        
+
+        Preferences prefs = new Preferences(getBaseContext());
         HyperionGrabberOptions options = new HyperionGrabberOptions(
-                mHorizontalLEDCount, mVerticalLEDCount, mFrameRate, mSendAverageColor);
+                mHorizontalLEDCount, mVerticalLEDCount, mFrameRate, mSendAverageColor,
+                captureSizeIndex(prefs.getString(R.string.pref_key_capture_resolution, "medium")));
          
         if (DEBUG) Log.v(TAG, "Creating encoder: " + metrics.widthPixels + "x" + metrics.heightPixels);
 
         // "codec" method works around devices that return black frames when a
         // VirtualDisplay feeds an ImageReader directly (TCL, Amlogic, etc.).
-        Preferences prefs = new Preferences(getBaseContext());
         String captureMethod = prefs.getString(R.string.pref_key_capture_method, "imagereader");
 
         if ("codec".equals(captureMethod)) {
@@ -448,6 +449,13 @@ public class HyperionScreenService extends Service {
         }
         mHyperionEncoder.sendStatus();
      }
+
+    /** Maps the capture resolution preference to a HyperionGrabberOptions tier index. */
+    private static int captureSizeIndex(String value) {
+        if ("low".equals(value)) return 0;
+        if ("high".equals(value)) return 2;
+        return 1; // medium
+    }
 
     private void stopScreenRecord() {
         if (DEBUG) Log.v(TAG, "Stopping screen recorder");

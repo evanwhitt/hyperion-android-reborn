@@ -53,18 +53,21 @@ public class SettingsActivity extends AppCompatPreferenceActivity {
 
         String stringValue = value.toString();
 
-        // Show the human readable label for the frame rate and capture method list preferences
+        // Show the human readable label for the frame rate / capture method / resolution list preferences
         int[] listKeys = {
                 com.hyperion.grabber.common.R.string.pref_key_framerate,
-                com.hyperion.grabber.common.R.string.pref_key_capture_method
+                com.hyperion.grabber.common.R.string.pref_key_capture_method,
+                com.hyperion.grabber.common.R.string.pref_key_capture_resolution
         };
         int[] labelsArrays = {
                 com.hyperion.grabber.common.R.array.pref_list_framerate,
-                com.hyperion.grabber.common.R.array.pref_list_capture_method
+                com.hyperion.grabber.common.R.array.pref_list_capture_method,
+                com.hyperion.grabber.common.R.array.pref_list_capture_resolution
         };
         int[] valuesArrays = {
                 com.hyperion.grabber.common.R.array.pref_list_framerate_values,
-                com.hyperion.grabber.common.R.array.pref_list_capture_method_values
+                com.hyperion.grabber.common.R.array.pref_list_capture_method_values,
+                com.hyperion.grabber.common.R.array.pref_list_capture_resolution_values
         };
         for (int i = 0; i < listKeys.length; i++) {
             if (prefResourceID == listKeys[i]) {
@@ -168,6 +171,7 @@ public class SettingsActivity extends AppCompatPreferenceActivity {
             bindPreferenceSummaryToValue(findPreference(getString(com.hyperion.grabber.common.R.string.pref_key_priority)));
             bindPreferenceSummaryToValue(findPreference(getString(com.hyperion.grabber.common.R.string.pref_key_framerate)));
             bindPreferenceSummaryToValue(findPreference(getString(com.hyperion.grabber.common.R.string.pref_key_capture_method)));
+            bindPreferenceSummaryToValue(findPreference(getString(com.hyperion.grabber.common.R.string.pref_key_capture_resolution)));
             bindPreferenceSummaryToValue(findPreference(getString(com.hyperion.grabber.common.R.string.pref_key_reconnect_delay)));
             bindPreferenceSummaryToValue(findPreference(getString(com.hyperion.grabber.common.R.string.pref_key_x_led)));
             bindPreferenceSummaryToValue(findPreference(getString(com.hyperion.grabber.common.R.string.pref_key_y_led)));

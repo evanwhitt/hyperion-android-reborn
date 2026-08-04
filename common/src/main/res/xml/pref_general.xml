@@ -106,6 +106,16 @@
             android:positiveButtonText="@null"
             android:title="@string/pref_title_capture_method" />
 
+        <ListPreference
+            android:defaultValue="@string/pref_default_capture_resolution"
+            android:entries="@array/pref_list_capture_resolution"
+            android:entryValues="@array/pref_list_capture_resolution_values"
+            android:key="@string/pref_key_capture_resolution"
+            android:summary="@string/pref_summary_capture_resolution"
+            android:negativeButtonText="@null"
+            android:positiveButtonText="@null"
+            android:title="@string/pref_title_capture_resolution" />
+
         <CheckBoxPreference
             android:defaultValue="@bool/pref_default_use_avg_color"
             android:key="@string/pref_key_use_avg_color"

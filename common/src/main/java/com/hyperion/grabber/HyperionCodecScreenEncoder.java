@@ -39,8 +39,6 @@ public final class HyperionCodecScreenEncoder extends HyperionScreenEncoderBase 
     private static final String TAG = "HyperionCodecEncoder";
     private static final boolean DEBUG = false;
 
-    private static final int MAX_CAPTURE_WIDTH = 640;
-    private static final int MAX_CAPTURE_HEIGHT = 360;
     private static final int BIT_RATE = 2_000_000;
 
     private VirtualDisplay mVirtualDisplay;
@@ -60,6 +58,7 @@ public final class HyperionCodecScreenEncoder extends HyperionScreenEncoderBase 
     private int mOutWidth;
     private int mOutHeight;
     private final long mFrameIntervalMs;
+    private final int mMaxCaptureDimension;
     private byte[] mRgbBuffer;
     private final byte[] mAvgColorResult = new byte[3];
 
@@ -90,6 +89,7 @@ public final class HyperionCodecScreenEncoder extends HyperionScreenEncoderBase 
                                       Context context) {
         super(listener, projection, screenWidth, screenHeight, density, options);
         mFrameIntervalMs = 1000L / mFrameRate;
+        mMaxCaptureDimension = options.getCodecMaxDimension();
         computeCaptureSize(screenWidth, screenHeight);
         mOutWidth = getGrabberWidth();
         mOutHeight = getGrabberHeight();
@@ -100,13 +100,14 @@ public final class HyperionCodecScreenEncoder extends HyperionScreenEncoderBase 
     /** Keeps the capture size at the display's aspect ratio so the encoder frame isn't letterboxed. */
     private void computeCaptureSize(int screenWidth, int screenHeight) {
         if (screenWidth <= 0 || screenHeight <= 0) {
-            mCaptureWidth = MAX_CAPTURE_WIDTH;
-            mCaptureHeight = MAX_CAPTURE_HEIGHT;
+            mCaptureWidth = mMaxCaptureDimension;
+            mCaptureHeight = Math.max(16, mMaxCaptureDimension * 9 / 16);
             return;
         }
+        float maxHeight = Math.max(16, mMaxCaptureDimension * (float) screenHeight / Math.max(1, screenWidth));
         float scale = Math.min(
-                (float) MAX_CAPTURE_WIDTH / screenWidth,
-                (float) MAX_CAPTURE_HEIGHT / screenHeight);
+                (float) mMaxCaptureDimension / screenWidth,
+                maxHeight / screenHeight);
         mCaptureWidth = Math.max(16, Math.round(screenWidth * scale)) & ~1;
         mCaptureHeight = Math.max(16, Math.round(screenHeight * scale)) & ~1;
     }
