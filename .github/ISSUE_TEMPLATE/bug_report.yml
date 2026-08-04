@@ -1,0 +1,79 @@
+name: Bug report
+description: Something isn't working as expected
+title: "[Bug] "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting! Please fill in as much as you can - it helps a lot.
+  - type: input
+    id: device
+    attributes:
+      label: Device
+      description: TV / phone model (e.g. TCL 55C61KS, Nvidia Shield, Pixel 7)
+      placeholder: e.g. TCL 55C61KS
+    validations:
+      required: true
+  - type: input
+    id: android-version
+    attributes:
+      label: Android version
+      description: e.g. Android 12, 14
+      placeholder: e.g. Android 14
+    validations:
+      required: true
+  - type: input
+    id: app-version
+    attributes:
+      label: App version
+      description: Version you have installed (check the release or Settings)
+      placeholder: e.g. v4.0.0
+    validations:
+      required: true
+  - type: dropdown
+    id: capture-method
+    attributes:
+      label: Capture method
+      description: Which capture method were you using?
+      options:
+        - Standard (ImageReader)
+        - Codec (compatibility)
+        - Not sure
+    validations:
+      required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What did you expect to happen, and what actually happened?
+      placeholder: Tell us what went wrong...
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Step by step how to trigger the problem
+      placeholder: |
+        1. Install the app
+        2. ...
+    validations:
+      required: false
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs (optional)
+      description: Paste any relevant logcat output (adb logcat) or screenshots. This is really useful.
+      render: text
+    validations:
+      required: false
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched the existing issues for a duplicate
+          required: true
+        - label: I'm using the latest release
+          required: false

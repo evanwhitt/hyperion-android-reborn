@@ -1,0 +1,28 @@
+name: Feature request
+description: Suggest an idea for this project
+title: "[Feature] "
+labels: [enhancement]
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: What would you like?
+      description: Describe the feature and what problem it solves for you.
+      placeholder: "I'd like the ability to..."
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Why / use case
+      description: What does your setup look like, and how would this help?
+      placeholder: "I have a ... and it would help because..."
+    validations:
+      required: false
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives you've considered
+      description: Any workarounds or other apps you've tried?
+    validations:
+      required: false

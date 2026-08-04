@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Hyperion project
+    url: https://hyperion-project.org/
+    about: The ambient light server this app talks to
