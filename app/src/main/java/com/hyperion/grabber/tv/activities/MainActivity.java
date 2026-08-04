@@ -150,6 +150,9 @@ public class MainActivity extends LeanbackActivity implements ImageView.OnClickL
 
         // request an update on the running status
         checkForInstance();
+
+        // Check for a newer build in the background (only after setup is done)
+        com.hyperion.grabber.UpdateHelper.INSTANCE.checkForUpdates(this);
     }
 
     @Override

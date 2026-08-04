@@ -9,6 +9,7 @@
 
 # [v3.1]
 ### Changes
+- NEW: In-app update checker - checks GitHub for newer tagged releases on launch and shows a dialog with the release notes (Update / Later / Remind me next launch). Downloads the APK via DownloadManager and launches the installer through a proper FileProvider. Only nags once per version.
 - NEW: "Capture Resolution" setting (Small / Medium / High) - lets low-RAM devices use a smaller capture size. Restart the grabber to apply. Available in mobile settings and the TV setup screen
 - NEW: 1x1 home-screen widget to toggle screen capture on/off with a single tap (add it via your launcher; works alongside the existing quick-settings tile and the "Hyperion Grabber (Toggle)" shortcut)
 - NEW: "Capture Method" setting with a **Codec (compatibility)** option that routes screen capture through an H.264 encoder/decoder pair (the same trick scrcpy uses). This fixes black frames on TVs where the VirtualDisplay → ImageReader path returns empty frames (TCL, Amlogic S905X5M / Ugoos, Hisense, etc.). Falls back to the standard method automatically if it fails to initialize

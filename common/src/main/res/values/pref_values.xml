@@ -58,4 +58,6 @@
 
     <string name="pref_key_audio_only_mode" translatable="false">pref_key_audio_only_mode</string>
     <bool name="pref_default_audio_only_mode" translatable="false">false</bool>
+
+    <string name="pref_key_last_update_notified" translatable="false">pref_key_last_update_notified</string>
 </resources>

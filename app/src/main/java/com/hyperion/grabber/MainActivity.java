@@ -66,7 +66,6 @@ public class MainActivity extends AppCompatActivity implements ImageView.OnClick
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         
-        // Remove update check logic
         mMediaProjectionManager = (MediaProjectionManager)
                                         getSystemService(Context.MEDIA_PROJECTION_SERVICE);
 
@@ -94,6 +93,9 @@ public class MainActivity extends AppCompatActivity implements ImageView.OnClick
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             requestNotificationPermission();
         }
+
+        // Check for a newer build in the background
+        UpdateHelper.INSTANCE.checkForUpdates(this);
     }
     
     @Override
