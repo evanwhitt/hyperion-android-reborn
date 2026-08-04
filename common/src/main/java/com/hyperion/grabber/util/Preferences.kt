@@ -34,7 +34,10 @@ class Preferences(context: Context) {
         
         // Fetch from SharedPreferences and cache
         val value = preferences.getString(keyStr, default)
-        stringCache[keyStr] = value
+        // ConcurrentHashMap forbids null values, so only cache non-null results
+        if (value != null) {
+            stringCache[keyStr] = value
+        }
         return value
     }
 

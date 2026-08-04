@@ -148,7 +148,8 @@ class HyperionThread(
     }
 
     private fun connect() {
-        while (reconnectEnabled.get() && !isInterrupted && !paused.get()) {
+        // Always attempt the initial connection; only retry when reconnect is enabled.
+        do {
             try {
                 val client = createClient()
                 if (client.isConnected()) {
@@ -159,23 +160,38 @@ class HyperionThread(
                 }
             } catch (e: IOException) {
                 callback.onConnectionError(e.hashCode(), e.message ?: "Unknown error")
-                if (!reconnectEnabled.get()) return
             }
+            if (!reconnectEnabled.get() || isInterrupted || paused.get()) return
             sleepSafe(reconnectDelayMs)
-        }
+        } while (true)
     }
 
     private fun handleError(e: IOException) {
         callback.onConnectionError(e.hashCode(), e.message ?: "Unknown error")
 
-        if (reconnectEnabled.get() && connected.get() && !paused.get()) {
-            sleepSafe(reconnectDelayMs)
-            if (!connected.get() || isInterrupted || paused.get()) return
+        if (!reconnectEnabled.get() || paused.get()) return
+
+        // Drop the dead client immediately so frames stop being written to a
+        // broken socket (which would otherwise loop "Broken pipe" forever).
+        val deadClient = clientRef.getAndSet(null)
+        if (deadClient != null) {
+            try {
+                deadClient.disconnect()
+            } catch (ignored: IOException) {
+            }
+        }
+        connected.set(false)
+
+        sleepSafe(reconnectDelayMs)
+        if (!connected.get() && !isInterrupted && !paused.get()) {
             try {
                 val newClient = createClient()
                 if (newClient.isConnected()) {
                     clientRef.set(newClient)
+                    connected.set(true)
                     callback.onConnected()
+                } else {
+                    callback.onConnectionError(0, "Failed to reconnect")
                 }
             } catch (ignored: IOException) {
             }

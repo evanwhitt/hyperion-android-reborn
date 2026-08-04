@@ -13,6 +13,13 @@ class HyperionFlatBuffers(address: String?, port: Int, priority: Int) : Hyperion
     private val mPriority: Int
     private val mBuilder: FlatBufferBuilder
 
+    // State for the incremental reply reader (see receiveReply)
+    private val mReplyHeader = ByteArray(HEADER_SIZE)
+    private var mReplyHeaderRead = 0
+    private var mReplyExpectedSize = 0
+    private var mReplyBodyRead = 0
+    private val mReplyBody = ByteArray(MAX_REPLY_SIZE)
+
     init {
         mSocket.tcpNoDelay = true // Disable Nagle's algorithm for low latency
         mSocket.sendBufferSize = 8192 // Smaller buffer for faster sends
@@ -121,36 +128,65 @@ class HyperionFlatBuffers(address: String?, port: Int, priority: Int) : Hyperion
         receiveReply()
     }
 
+    /**
+     * Consumes any pending replies without blocking frame sending.
+     *
+     * A reply may arrive split across reads (header and body can show up in
+     * separate calls). Reading a partial header/body and discarding the state
+     * would desync the stream, so progress is kept between calls.
+     */
     private fun receiveReply() {
-        // Non-blocking reply consumption to keep socket clean
-        // This is called separately and doesn't block frame sending
         try {
             val input = mSocket.getInputStream()
-            while (input.available() >= HEADER_SIZE) {
-                val header = ByteArray(HEADER_SIZE)
-                var read = 0
-                while (read < HEADER_SIZE) {
-                    val n = input.read(header, read, HEADER_SIZE - read)
-                    if (n <= 0) return
-                    read += n
+            while (input.available() > 0) {
+                if (mReplyExpectedSize == 0) {
+                    // Read the 4-byte header (won't block: available() > 0)
+                    while (mReplyHeaderRead < HEADER_SIZE) {
+                        val n = input.read(mReplyHeader, mReplyHeaderRead, HEADER_SIZE - mReplyHeaderRead)
+                        if (n <= 0) {
+                            resetReplyState()
+                            return
+                        }
+                        mReplyHeaderRead += n
+                    }
+                    val size = (mReplyHeader[0].toInt() and 0xFF shl 24) or
+                            (mReplyHeader[1].toInt() and 0xFF shl 16) or
+                            (mReplyHeader[2].toInt() and 0xFF shl 8) or
+                            (mReplyHeader[3].toInt() and 0xFF)
+                    if (size <= 0 || size > MAX_REPLY_SIZE) {
+                        resetReplyState()
+                        return // corrupt frame, stop consuming
+                    }
+                    mReplyExpectedSize = size
+                    mReplyBodyRead = 0
                 }
-                val size = (header[0].toInt() and 0xFF shl 24) or
-                        (header[1].toInt() and 0xFF shl 16) or
-                        (header[2].toInt() and 0xFF shl 8) or
-                        (header[3].toInt() and 0xFF)
-                if (size <= 0 || size > MAX_REPLY_SIZE) return // corrupt frame, stop consuming
-                if (input.available() < size) return // Not enough data yet, will consume later
-                val data = ByteArray(size)
-                var done = 0
-                while (done < size) {
-                    val n = input.read(data, done, size - done)
-                    if (n <= 0) return
-                    done += n
+
+                // Read as much of the body as is available now; keep the rest for next call
+                val remaining = mReplyExpectedSize - mReplyBodyRead
+                if (remaining > 0) {
+                    val toRead = minOf(remaining, input.available())
+                    val n = input.read(mReplyBody, mReplyBodyRead, toRead)
+                    if (n <= 0) {
+                        resetReplyState()
+                        return
+                    }
+                    mReplyBodyRead += n
+                }
+                if (mReplyBodyRead >= mReplyExpectedSize) {
+                    resetReplyState()
+                } else {
+                    return // body not fully arrived yet, resume next time
                 }
             }
         } catch (e: IOException) {
             // Ignore - non-blocking read
         }
+    }
+
+    private fun resetReplyState() {
+        mReplyHeaderRead = 0
+        mReplyExpectedSize = 0
+        mReplyBodyRead = 0
     }
 
     companion object {
