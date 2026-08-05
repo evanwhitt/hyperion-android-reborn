@@ -73,6 +73,25 @@ If video plays but your LEDs stay black, switch **Capture Method** to *Codec (co
 
 ---
 
+## Disabling the Screen Recording Indicator (Android TV)
+
+On newer Android/Google TV releases (14+), a persistent status bar chip or screen recording icon whenever screen capture is active. You can attempt to disable this indicator via ADB:
+
+```sh
+adb shell device_config put privacy media_projection_indicators_enabled false default
+```
+
+If that woks, you can optionally, prevent system device config updates from automatically re-enabling it as that can occur after system updates with `adb shell device_config set_sync_disabled_for_tests persistent`. However this is only needed if the command above gets reverted regularly, **do not use this** unless you are sure you need it.
+
+> [!WARNING]
+> Modifying `device_config` flags or disabling config sync may cause unexpected side effects, system instability, or break on future system updates. Use at your own risk. Review the resources below for more info.
+
+More info:
+- [droidVNC-NG Issue #324](https://github.com/bk138/droidVNC-NG/issues/324)
+- [Android Developer: Media projection](https://developer.android.com/media/grow/media-projection)
+
+---
+
 ## Troubleshooting
 
 - **Black screen while something's playing** - try **Capture Method → Codec (compatibility)**. Some TVs draw video on a separate hardware layer that the normal path can't see. (Heads up: DRM stuff like Netflix will always show up black, that's not something the app can get around.)
