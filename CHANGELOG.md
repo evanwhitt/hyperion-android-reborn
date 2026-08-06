@@ -8,6 +8,11 @@
 
 
 
+
+# [v4.1]
+### Fixed
+- Codec capture method: on some TV boxes (Amlogic etc.) the screen came through tiny and in the top-left corner because the encoder frame letterboxes the real picture. The active content area is now detected once and auto-cropped. Big thanks to **robin** for the fix ([fork](https://gitea.datadrake.cloud/robin/hyperion-android-reborn-edited))
+
 # [v4.0]
 ### Major new features
 - NEW: **Codec (compatibility) capture method** - routes screen capture through an H.264 encoder/decoder pair. Fixes black frames on TVs where the standard path returns empty frames (TCL, Amlogic, Hisense, etc.) and offloads scaling to the hardware codec. Selectable in mobile settings and the TV setup screen; auto-falls back to the standard method if it fails to start

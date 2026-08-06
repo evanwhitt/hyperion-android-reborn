@@ -62,6 +62,19 @@ public final class HyperionCodecScreenEncoder extends HyperionScreenEncoderBase 
     private byte[] mRgbBuffer;
     private final byte[] mAvgColorResult = new byte[3];
 
+    // Letterbox auto-crop (credit: robin - gitea.datadrake.cloud/robin/hyperion-android-reborn-edited)
+    private static final int CONTENT_BOUNDS_LOCK_STABLE = 2;
+    private static final int CONTENT_BOUNDS_HYSTERESIS_PX = 12;
+    private static final int BLACK_Y_THRESHOLD = 32;
+    private static final float LETTERBOX_FILL_MIN = 0.05f;
+    private static final float LETTERBOX_FILL_MAX = 0.70f;
+
+    private final Rect mContentBounds = new Rect();
+    private final Rect mPendingBounds = new Rect();
+    private boolean mContentBoundsValid;
+    private boolean mContentBoundsLocked;
+    private int mStableBoundsCount;
+
     private final VirtualDisplay.Callback mDisplayCallback = new VirtualDisplay.Callback() {
         @Override
         public void onPaused() {
@@ -128,6 +141,9 @@ public final class HyperionCodecScreenEncoder extends HyperionScreenEncoderBase 
     }
 
     private void startPipeline() {
+        mContentBoundsLocked = false;
+        mContentBoundsValid = false;
+        mStableBoundsCount = 0;
         try {
             mEncoder = createEncoder();
             mInputSurface = mEncoder.createInputSurface();
@@ -343,11 +359,27 @@ public final class HyperionCodecScreenEncoder extends HyperionScreenEncoderBase 
         final int cropH = Math.min(image.getHeight() - cropTop, crop.height());
         if (cropW <= 0 || cropH <= 0) return;
 
+        // Detect the letterboxed active picture (once) and crop to it.
+        if (!mContentBoundsLocked) {
+            updateContentBounds(yBuf, yRowStride, yPixelStride, crop);
+        }
+        if (!mContentBoundsValid) {
+            mContentBounds.set(crop);
+            mContentBoundsValid = true;
+        }
+
+        final int srcLeft = Math.max(cropLeft, mContentBounds.left);
+        final int srcTop = Math.max(cropTop, mContentBounds.top);
+        final int srcRight = Math.min(cropLeft + cropW, mContentBounds.right);
+        final int srcBottom = Math.min(cropTop + cropH, mContentBounds.bottom);
+        final int srcW = Math.max(2, srcRight - srcLeft);
+        final int srcH = Math.max(2, srcBottom - srcTop);
+
         int rgbIdx = 0;
         for (int y = 0; y < outHeight; y++) {
-            int srcY = cropTop + (y * cropH) / outHeight;
+            int srcY = srcTop + (y * srcH) / outHeight;
             for (int x = 0; x < outWidth; x++) {
-                int srcX = cropLeft + (x * cropW) / outWidth;
+                int srcX = srcLeft + (x * srcW) / outWidth;
 
                 int yOff = yBuf.position() + srcY * yRowStride + srcX * yPixelStride;
                 int chromaX = srcX / 2;
@@ -372,6 +404,109 @@ public final class HyperionCodecScreenEncoder extends HyperionScreenEncoderBase 
 
     private static int clamp(int value) {
         return value < 0 ? 0 : (value > 255 ? 255 : value);
+    }
+
+    private void updateContentBounds(ByteBuffer yBuf, int yRowStride, int yPixelStride, Rect crop) {
+        final Rect detected = detectLetterboxByEdges(yBuf, yRowStride, yPixelStride, crop);
+        final float fill = (detected.width() * (float) detected.height())
+                / Math.max(1, crop.width() * crop.height());
+
+        if (fill > LETTERBOX_FILL_MIN && fill <= LETTERBOX_FILL_MAX) {
+            mContentBounds.set(detected);
+            mContentBoundsValid = true;
+            mContentBoundsLocked = true;
+            return;
+        }
+
+        if (!mContentBoundsValid) {
+            mContentBounds.set(crop);
+            mPendingBounds.set(detected);
+            mContentBoundsValid = true;
+            mStableBoundsCount = 1;
+            return;
+        }
+
+        if (boundsSimilar(mPendingBounds, detected, CONTENT_BOUNDS_HYSTERESIS_PX)) {
+            mStableBoundsCount++;
+            if (mStableBoundsCount >= CONTENT_BOUNDS_LOCK_STABLE) {
+                mContentBounds.set(detected);
+                mContentBoundsLocked = true;
+            }
+        } else {
+            mPendingBounds.set(detected);
+            mStableBoundsCount = 1;
+        }
+    }
+
+    private Rect detectLetterboxByEdges(ByteBuffer yBuf, int yRowStride, int yPixelStride, Rect crop) {
+        final int threshold = BLACK_Y_THRESHOLD;
+        final int minBright = Math.max(3, Math.min(crop.width(), crop.height()) / 64);
+        final int step = 8;
+        final int base = yBuf.position();
+
+        int top = crop.top;
+        for (; top < crop.bottom - 2; top += step) {
+            if (countBrightInRow(base, yBuf, yRowStride, yPixelStride, crop.left, crop.right, top, threshold)
+                    >= minBright) break;
+        }
+
+        int bottom = crop.bottom - 1;
+        for (; bottom > top + 2; bottom -= step) {
+            if (countBrightInRow(base, yBuf, yRowStride, yPixelStride, crop.left, crop.right, bottom, threshold)
+                    >= minBright) break;
+        }
+
+        int left = crop.left;
+        for (; left < crop.right - 2; left += step) {
+            if (countBrightInCol(base, yBuf, yRowStride, yPixelStride, left, top, bottom, threshold)
+                    >= minBright) break;
+        }
+
+        int right = crop.right - 1;
+        for (; right > left + 2; right -= step) {
+            if (countBrightInCol(base, yBuf, yRowStride, yPixelStride, right, top, bottom, threshold)
+                    >= minBright) break;
+        }
+
+        if (right - left < 8 || bottom - top < 8) {
+            return new Rect(crop);
+        }
+
+        left = Math.max(crop.left, left) & ~1;
+        top = Math.max(crop.top, top) & ~1;
+        right = Math.min(crop.right, right + 1);
+        bottom = Math.min(crop.bottom, bottom + 1);
+        if (((right - left) & 1) != 0) right = Math.min(crop.right, right + 1);
+        if (((bottom - top) & 1) != 0) bottom = Math.min(crop.bottom, bottom + 1);
+
+        return new Rect(left, top, right, bottom);
+    }
+
+    private static int countBrightInRow(int base, ByteBuffer yBuf, int yRowStride, int yPixelStride,
+                                        int x0, int x1, int y, int threshold) {
+        int count = 0;
+        final int row = base + y * yRowStride;
+        for (int x = x0; x < x1; x += 4) {
+            if ((yBuf.get(row + x * yPixelStride) & 0xFF) > threshold) count++;
+        }
+        return count;
+    }
+
+    private static int countBrightInCol(int base, ByteBuffer yBuf, int yRowStride, int yPixelStride,
+                                        int x, int y0, int y1, int threshold) {
+        int count = 0;
+        final int xOff = base + x * yPixelStride;
+        for (int y = y0; y <= y1; y += 4) {
+            if ((yBuf.get(y * yRowStride + xOff) & 0xFF) > threshold) count++;
+        }
+        return count;
+    }
+
+    private static boolean boundsSimilar(Rect a, Rect b, int tolerancePx) {
+        return Math.abs(a.left - b.left) <= tolerancePx
+                && Math.abs(a.top - b.top) <= tolerancePx
+                && Math.abs(a.right - b.right) <= tolerancePx
+                && Math.abs(a.bottom - b.bottom) <= tolerancePx;
     }
 
     private void requestSyncFrame() {
