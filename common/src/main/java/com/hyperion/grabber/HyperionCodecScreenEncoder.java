@@ -20,6 +20,7 @@ import android.view.Surface;
 import com.hyperion.grabber.common.network.HyperionThread;
 import com.hyperion.grabber.common.util.HyperionGrabberOptions;
 import com.hyperion.grabber.common.util.AdaptiveFrameRate;
+import com.hyperion.grabber.common.util.HdrConverter;
 
 import java.nio.ByteBuffer;
 
@@ -71,6 +72,9 @@ public final class HyperionCodecScreenEncoder extends HyperionScreenEncoderBase 
     private static final int HEALTHY_FRAMES_FOR_RESTORE = 90;
     private byte[] mRgbBuffer;
     private final byte[] mAvgColorResult = new byte[3];
+    private byte[] mHdrLut;
+    private boolean mHdrActive;
+    private int mHdrRangeOffset;
 
     private static final long WHITE_FRAME_THRESHOLD = 60; // ~2s at 30fps
     private static final int WHITE_Y_THRESHOLD = 230;
@@ -211,6 +215,27 @@ public final class HyperionCodecScreenEncoder extends HyperionScreenEncoderBase 
     }
 
     /** Lazily creates the H.264 decoder once the encoder reports its output format (with csd data). */
+    private void updateColorInfo(MediaFormat format) {
+        mHdrActive = false;
+        mHdrLut = null;
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) {
+            return;
+        }
+        int transfer = format.containsKey(MediaFormat.KEY_COLOR_TRANSFER)
+                ? format.getInteger(MediaFormat.KEY_COLOR_TRANSFER) : -1;
+        int standard = format.containsKey(MediaFormat.KEY_COLOR_STANDARD)
+                ? format.getInteger(MediaFormat.KEY_COLOR_STANDARD) : -1;
+        if (!HdrConverter.isHdrTransfer(transfer) || standard != MediaFormat.COLOR_STANDARD_BT2020) {
+            return;
+        }
+        int range = format.containsKey(MediaFormat.KEY_COLOR_RANGE)
+                ? format.getInteger(MediaFormat.KEY_COLOR_RANGE) : MediaFormat.COLOR_RANGE_LIMITED;
+        mHdrLut = HdrConverter.buildLut(transfer);
+        mHdrRangeOffset = range == MediaFormat.COLOR_RANGE_FULL ? 0 : 16;
+        mHdrActive = true;
+        Log.i(TAG, "HDR output: transfer=" + transfer + " standard=" + standard + " range=" + range);
+    }
+
     private void ensureDecoder(MediaFormat encoderFormat) {
         if (mDecoderStarted) return;
         try {
@@ -339,6 +364,7 @@ public final class HyperionCodecScreenEncoder extends HyperionScreenEncoderBase 
                 break;
             } else if (index == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED) {
                 if (DEBUG) Log.d(TAG, "Decoder output format: " + mDecoder.getOutputFormat());
+                updateColorInfo(mDecoder.getOutputFormat());
             } else if (index >= 0) {
                 if (mDecoderInfo.size > 0) {
                     sendDecodedFrame(index);
@@ -494,17 +520,26 @@ public final class HyperionCodecScreenEncoder extends HyperionScreenEncoderBase 
                 int uOff = uBuf.position() + chromaY * uRowStride + chromaX * uPixelStride;
                 int vOff = semiPlanar ? uOff + 1 : vBuf.position() + chromaY * vRowStride + chromaX * vPixelStride;
 
-                int Y = (yBuf.get(yOff) & 0xFF) - 16;
+                int Y = (yBuf.get(yOff) & 0xFF) - (mHdrActive ? mHdrRangeOffset : 16);
                 int U = (uBuf.get(uOff) & 0xFF) - 128;
                 int V = (vBuf.get(vOff) & 0xFF) - 128;
 
-                int r = (int) (1.164f * Y + 1.596f * V);
-                int g = (int) (1.164f * Y - 0.392f * U - 0.813f * V);
-                int b = (int) (1.164f * Y + 2.017f * U);
+                if (mHdrActive) {
+                    int rp = Y + (int) (1.4746f * V);
+                    int gp = Y - (int) (0.1645f * U) - (int) (0.5714f * V);
+                    int bp = Y + (int) (1.8814f * U);
+                    rgb[rgbIdx++] = mHdrLut[clamp(rp)];
+                    rgb[rgbIdx++] = mHdrLut[clamp(gp)];
+                    rgb[rgbIdx++] = mHdrLut[clamp(bp)];
+                } else {
+                    int r = (int) (1.164f * Y + 1.596f * V);
+                    int g = (int) (1.164f * Y - 0.392f * U - 0.813f * V);
+                    int b = (int) (1.164f * Y + 2.017f * U);
 
-                rgb[rgbIdx++] = (byte) clamp(r);
-                rgb[rgbIdx++] = (byte) clamp(g);
-                rgb[rgbIdx++] = (byte) clamp(b);
+                    rgb[rgbIdx++] = (byte) clamp(r);
+                    rgb[rgbIdx++] = (byte) clamp(g);
+                    rgb[rgbIdx++] = (byte) clamp(b);
+                }
             }
         }
     }
