@@ -32,6 +32,9 @@ jobs:
     - name: Grant execute permission for gradlew
       run: chmod +x gradlew
 
+    - name: Run unit tests
+      run: ./gradlew testDebugUnitTest
+
     - name: Decode Keystore
       run: |
         echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > ${{ github.workspace }}/release.keystore
@@ -90,7 +93,7 @@ jobs:
           
           This is a pre-release build from the main branch and may be unstable.
           
-          **[View Changelog](https://github.com/haumlab/hyperion-android-reborn/blob/main/CHANGELOG.md)** for recent changes.
+          **[View Changelog](https://github.com/evanwhitt/hyperion-android-reborn/blob/main/CHANGELOG.md)** for recent changes.
           
           ---
           ### Downloads
