@@ -63,6 +63,9 @@ public class HyperionScreenService extends Service {
     private HyperionScreenEncoderBase mHyperionEncoder;
     private NotificationManager mNotificationManager;
     private String mStartError = null;
+    private int mScreenWidth;
+    private int mScreenHeight;
+    private int mScreenDensity;
 
     private final HyperionThreadBroadcaster mReceiver = new HyperionThreadBroadcaster() {
         @Override
@@ -408,6 +411,9 @@ public class HyperionScreenService extends Service {
         sMediaProjection = projection;
         final DisplayMetrics metrics = new DisplayMetrics();
         window.getDefaultDisplay().getRealMetrics(metrics);
+        mScreenWidth = metrics.widthPixels;
+        mScreenHeight = metrics.heightPixels;
+        mScreenDensity = metrics.densityDpi;
 
         Preferences prefs = new Preferences(getBaseContext());
         HyperionGrabberOptions options = new HyperionGrabberOptions(
@@ -446,9 +452,67 @@ public class HyperionScreenService extends Service {
                     metrics.densityDpi,
                     options,
                     this);
+            // If this path returns persistent black frames (common on some TVs),
+            // automatically switch to the Codec capture method.
+            if (mHyperionEncoder instanceof HyperionScreenEncoder) {
+                ((HyperionScreenEncoder) mHyperionEncoder).setBlackFrameCallback(() -> {
+                    mHandler.post(HyperionScreenService.this::restartWithCodec);
+                });
+            }
         }
         mHyperionEncoder.sendStatus();
      }
+
+    /** Switches from the ImageReader capture path to the Codec path after black frames. */
+    private void restartWithCodec() {
+        if (mHyperionEncoder == null || !(mHyperionEncoder instanceof HyperionScreenEncoder)) {
+            return;
+        }
+        Log.i(TAG, "Black frames detected, switching to Codec capture method");
+        mStartError = null;
+
+        mHyperionEncoder.stopRecording();
+        mHyperionEncoder = null;
+        if (mHyperionThread != null) {
+            mHyperionThread.interrupt();
+        }
+
+        Preferences prefs = new Preferences(getBaseContext());
+        String host = prefs.getString(R.string.pref_key_host, null);
+        int port = prefs.getInt(R.string.pref_key_port, -1);
+        String priority = prefs.getString(R.string.pref_key_priority, "100");
+        mReconnectEnabled = prefs.getBoolean(R.string.pref_key_reconnect);
+        int delay = prefs.getInt(R.string.pref_key_reconnect_delay);
+
+        int priorityValue = 100;
+        try {
+            priorityValue = Integer.parseInt(priority);
+        } catch (NumberFormatException e) {
+            Log.e(TAG, "Invalid priority value: " + priority);
+        }
+
+        mHyperionThread = new HyperionThread(mReceiver, host, port, priorityValue, mReconnectEnabled, delay);
+        mHyperionThread.start();
+
+        HyperionGrabberOptions options = new HyperionGrabberOptions(
+                mHorizontalLEDCount, mVerticalLEDCount, mFrameRate, mSendAverageColor,
+                captureSizeIndex(prefs.getString(R.string.pref_key_capture_resolution, "medium")));
+
+        try {
+            mHyperionEncoder = new HyperionCodecScreenEncoder(
+                    mHyperionThread.getReceiver(),
+                    sMediaProjection,
+                    mScreenWidth, mScreenHeight, mScreenDensity,
+                    options,
+                    this);
+            mHyperionEncoder.sendStatus();
+            prefs.putString(R.string.pref_key_capture_method, "codec");
+        } catch (Exception e) {
+            Log.e(TAG, "Codec switch failed: " + e.getMessage());
+            mStartError = getResources().getString(R.string.error_server_unreachable);
+            stopSelf();
+        }
+    }
 
     /** Maps the capture resolution preference to a HyperionGrabberOptions tier index. */
     private static int captureSizeIndex(String value) {

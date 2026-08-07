@@ -65,6 +65,14 @@ public final class HyperionScreenEncoder extends HyperionScreenEncoderBase {
     private boolean mAudioOnlyMode = false;
     private boolean mAnimationAutoEnabled = false;
     private final int mMaxCaptureDimension;
+
+    // Black-frame detection: some TVs return black frames through ImageReader.
+    // If enough consecutive frames are black, the service switches to the Codec path.
+    private static final long BLACK_FRAME_THRESHOLD = 60; // ~2s at 30fps
+    private static final int BLACK_LUMA_THRESHOLD = 12;
+    private long mBlackFrameCount;
+    private boolean mBlackFallbackTriggered;
+    private Runnable mBlackFrameCallback;
     
     private final Runnable mCaptureRunnable = new Runnable() {
         @Override
@@ -219,6 +227,17 @@ public final class HyperionScreenEncoder extends HyperionScreenEncoderBase {
         try {
             img = mImageReader.acquireLatestImage();
             if (img != null) {
+                if (!mBlackFallbackTriggered && isFrameBlack(img)) {
+                    mBlackFrameCount++;
+                    if (mBlackFrameCount >= BLACK_FRAME_THRESHOLD) {
+                        mBlackFallbackTriggered = true;
+                        if (mBlackFrameCallback != null) {
+                            mBlackFrameCallback.run();
+                        }
+                    }
+                } else {
+                    mBlackFrameCount = 0;
+                }
                 boolean skipBorderDetection = mHighLoadCount > 0;
                 boolean skipAverageColor = mHighLoadCount > HIGH_LOAD_THRESHOLD;
                 processImage(img, skipBorderDetection, skipAverageColor);
@@ -291,6 +310,42 @@ public final class HyperionScreenEncoder extends HyperionScreenEncoderBase {
         } else {
             sendPixelData(buffer, width, height, rowStride, pixelStride);
         }
+    }
+
+    /** Called once when the ImageReader path produces persistent black frames. */
+    void setBlackFrameCallback(Runnable callback) {
+        mBlackFrameCallback = callback;
+    }
+
+    private boolean isFrameBlack(Image img) {
+        Image.Plane plane = img.getPlanes()[0];
+        ByteBuffer buffer = plane.getBuffer();
+        int width = img.getWidth();
+        int height = img.getHeight();
+        int rowStride = plane.getRowStride();
+        int pixelStride = plane.getPixelStride();
+        return isFrameBlack(buffer, width, height, rowStride, pixelStride);
+    }
+
+    public static boolean isFrameBlack(ByteBuffer buffer, int width, int height,
+                                int rowStride, int pixelStride) {
+        if (width <= 0 || height <= 0 || buffer == null) return false;
+        final int base = buffer.position();
+        final int step = Math.max(4, Math.max(width, height) / 24);
+        long sum = 0;
+        int samples = 0;
+        for (int y = 0; y < height; y += step) {
+            final int row = base + y * rowStride;
+            for (int x = 0; x < width; x += step) {
+                final int off = row + x * pixelStride;
+                sum += (buffer.get(off) & 0xFF);
+                sum += (buffer.get(off + 1) & 0xFF);
+                sum += (buffer.get(off + 2) & 0xFF);
+                samples += 3;
+            }
+        }
+        if (samples == 0) return false;
+        return (sum / samples) < BLACK_LUMA_THRESHOLD;
     }
     
     private void updateBorderDetection(ByteBuffer buffer, int width, int height, 
