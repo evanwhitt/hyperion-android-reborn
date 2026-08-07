@@ -74,7 +74,6 @@ public final class HyperionCodecScreenEncoder extends HyperionScreenEncoderBase 
     private boolean mContentBoundsValid;
     private boolean mContentBoundsLocked;
     private int mStableBoundsCount;
-    private int mDiagFrames;
 
     private final VirtualDisplay.Callback mDisplayCallback = new VirtualDisplay.Callback() {
         @Override
@@ -108,9 +107,6 @@ public final class HyperionCodecScreenEncoder extends HyperionScreenEncoderBase 
         mOutWidth = getGrabberWidth();
         mOutHeight = getGrabberHeight();
         mRgbBuffer = new byte[mOutWidth * mOutHeight * 3];
-        Log.i(TAG, "DIAG screen=" + screenWidth + "x" + screenHeight
-                + " capture=" + mCaptureWidth + "x" + mCaptureHeight
-                + " output=" + mOutWidth + "x" + mOutHeight + " fps=" + mFrameRate);
         init();
     }
 
@@ -304,22 +300,6 @@ public final class HyperionCodecScreenEncoder extends HyperionScreenEncoderBase 
         try {
             image = mDecoder.getOutputImage(index);
             if (image != null) {
-                if (mDiagFrames < 5) {
-                    mDiagFrames++;
-                    Image.Plane[] pl = image.getPlanes();
-                    Image.Plane yp = pl[0];
-                    Log.i(TAG, "DIAG frame=" + mDiagFrames
-                            + " img=" + image.getWidth() + "x" + image.getHeight()
-                            + " crop=" + image.getCropRect().toShortString()
-                            + " planes=" + pl.length
-                            + " yRow=" + yp.getRowStride() + " yPix=" + yp.getPixelStride()
-                            + " yPos=" + yp.getBuffer().position()
-                            + " cap=" + mCaptureWidth + "x" + mCaptureHeight
-                            + " out=" + mOutWidth + "x" + mOutHeight
-                            + " content=" + mContentBounds.toShortString()
-                            + " locked=" + mContentBoundsLocked
-                            + " valid=" + mContentBoundsValid);
-                }
                 convertYuvToRgb(image, mRgbBuffer, mOutWidth, mOutHeight);
                 if (mAvgColor) {
                     sendAverageColor();
@@ -430,12 +410,6 @@ public final class HyperionCodecScreenEncoder extends HyperionScreenEncoderBase 
         final Rect detected = detectLetterboxByEdges(yBuf, yRowStride, yPixelStride, crop);
         final float fill = (detected.width() * (float) detected.height())
                 / Math.max(1, crop.width() * crop.height());
-
-        Log.i(TAG, "DIAG detect=" + detected.toShortString()
-                + " fill=" + String.format(java.util.Locale.US, "%.3f", fill)
-                + " pending=" + mPendingBounds.toShortString()
-                + " stable=" + mStableBoundsCount
-                + " locked=" + mContentBoundsLocked);
 
         if (mContentBoundsLocked) {
             if (boundsSubstantiallyDifferent(mContentBounds, detected, crop.width(), crop.height())) {
