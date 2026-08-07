@@ -19,6 +19,7 @@ import android.view.Surface;
 
 import com.hyperion.grabber.common.network.HyperionThread;
 import com.hyperion.grabber.common.util.HyperionGrabberOptions;
+import com.hyperion.grabber.common.util.AdaptiveFrameRate;
 
 import java.nio.ByteBuffer;
 
@@ -57,10 +58,16 @@ public final class HyperionCodecScreenEncoder extends HyperionScreenEncoderBase 
     private int mCaptureHeight;
     private int mOutWidth;
     private int mOutHeight;
-    private final long mFrameIntervalMs;
+    private final AdaptiveFrameRate mAdaptiveFps;
     private final int mMaxCaptureDimension;
     private byte[] mRgbBuffer;
     private final byte[] mAvgColorResult = new byte[3];
+
+    private static final long WHITE_FRAME_THRESHOLD = 60; // ~2s at 30fps
+    private static final int WHITE_Y_THRESHOLD = 230;
+    private static final double WHITE_FILL_RATIO = 0.90;
+    private long mWhiteFrameCount;
+    private boolean mWhiteFallbackTriggered;
 
     // Letterbox auto-crop (credit: robin - gitea.datadrake.cloud/robin/hyperion-android-reborn-edited)
     private static final int CONTENT_BOUNDS_LOCK_STABLE = 2;
@@ -101,7 +108,7 @@ public final class HyperionCodecScreenEncoder extends HyperionScreenEncoderBase 
                                       HyperionGrabberOptions options,
                                       Context context) {
         super(listener, projection, screenWidth, screenHeight, density, options);
-        mFrameIntervalMs = 1000L / mFrameRate;
+        mAdaptiveFps = new AdaptiveFrameRate(mFrameRate);
         mMaxCaptureDimension = options.getCodecMaxDimension();
         computeCaptureSize(screenWidth, screenHeight);
         mOutWidth = getGrabberWidth();
@@ -218,13 +225,15 @@ public final class HyperionCodecScreenEncoder extends HyperionScreenEncoderBase 
         @Override
         public void run() {
             if (!mRunning || mCaptureHandler == null) return;
+            final long stepStart = System.nanoTime();
             try {
                 stepCodec();
             } catch (Exception e) {
                 if (DEBUG) Log.w(TAG, "Codec step error: " + e.getMessage(), e);
             }
             if (mRunning && mCaptureHandler != null) {
-                mCaptureHandler.postDelayed(this, Math.max(1L, mFrameIntervalMs));
+                mCaptureHandler.postDelayed(this,
+                        Math.max(1L, mAdaptiveFps.update(System.nanoTime() - stepStart)));
             }
         }
     };
@@ -300,6 +309,17 @@ public final class HyperionCodecScreenEncoder extends HyperionScreenEncoderBase 
         try {
             image = mDecoder.getOutputImage(index);
             if (image != null) {
+                if (!mWhiteFallbackTriggered && isFrameWhiteYuv(image)) {
+                    mWhiteFrameCount++;
+                    if (mWhiteFrameCount >= WHITE_FRAME_THRESHOLD) {
+                        mWhiteFallbackTriggered = true;
+                        if (mWhiteFrameCallback != null) {
+                            mWhiteFrameCallback.run();
+                        }
+                    }
+                } else {
+                    mWhiteFrameCount = 0;
+                }
                 convertYuvToRgb(image, mRgbBuffer, mOutWidth, mOutHeight);
                 if (mAvgColor) {
                     sendAverageColor();
@@ -312,6 +332,36 @@ public final class HyperionCodecScreenEncoder extends HyperionScreenEncoderBase 
         } finally {
             if (image != null) image.close();
         }
+    }
+
+    private boolean isFrameWhiteYuv(Image image) {
+        Image.Plane yPlane = image.getPlanes()[0];
+        ByteBuffer yBuf = yPlane.getBuffer();
+        Rect crop = image.getCropRect();
+        int cropLeft = Math.max(0, crop.left);
+        int cropTop = Math.max(0, crop.top);
+        int cropW = Math.min(image.getWidth() - cropLeft, crop.width());
+        int cropH = Math.min(image.getHeight() - cropTop, crop.height());
+        return isFrameWhiteYuv(yBuf, yPlane.getRowStride(), yPlane.getPixelStride(),
+                cropLeft, cropTop, cropW, cropH);
+    }
+
+    private boolean isFrameWhiteYuv(ByteBuffer yBuf, int yRowStride, int yPixelStride,
+                                    int cropLeft, int cropTop, int cropW, int cropH) {
+        if (cropW <= 0 || cropH <= 0 || yBuf == null) return false;
+        final int base = yBuf.position();
+        final int step = Math.max(4, Math.max(cropW, cropH) / 24);
+        int bright = 0;
+        int total = 0;
+        for (int y = cropTop; y < cropTop + cropH; y += step) {
+            final int row = base + y * yRowStride;
+            for (int x = cropLeft; x < cropLeft + cropW; x += step) {
+                if ((yBuf.get(row + x * yPixelStride) & 0xFF) >= WHITE_Y_THRESHOLD) bright++;
+                total++;
+            }
+        }
+        if (total == 0) return false;
+        return (bright / (double) total) >= WHITE_FILL_RATIO;
     }
 
     private void sendAverageColor() {

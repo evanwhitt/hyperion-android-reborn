@@ -17,7 +17,8 @@ class HyperionThread(
     delaySeconds: Int
 ) : Thread(TAG) {
 
-    private val reconnectDelayMs = (delaySeconds * 1000).toLong()
+    private val baseReconnectDelayMs = (delaySeconds.toLong() * 1000)
+    private var currentReconnectDelayMs = baseReconnectDelayMs
     private val reconnectEnabled = AtomicBoolean(reconnect)
     private val connected = AtomicBoolean(false)
     private val clientRef = AtomicReference<HyperionClient>()
@@ -125,6 +126,7 @@ class HyperionThread(
                 val existing = clientRef.get()
                 if (existing != null && existing.isConnected()) {
                     connected.set(true)
+                    resetBackoff()
                     callback.onConnected()
                     return@submit
                 }
@@ -133,6 +135,7 @@ class HyperionThread(
                 if (client.isConnected()) {
                     clientRef.set(client)
                     connected.set(true)
+                    resetBackoff()
                     callback.onConnected()
                 } else {
                     callback.onConnectionError(0, "Failed to reconnect")
@@ -147,6 +150,16 @@ class HyperionThread(
         return HyperionFlatBuffers(host, port, priority)
     }
 
+    private fun nextReconnectDelayMs(): Long {
+        val delay = currentReconnectDelayMs
+        currentReconnectDelayMs = (delay * 2).coerceAtMost(MAX_RECONNECT_DELAY_MS)
+        return delay
+    }
+
+    private fun resetBackoff() {
+        currentReconnectDelayMs = baseReconnectDelayMs
+    }
+
     private fun connect() {
         // Always attempt the initial connection; only retry when reconnect is enabled.
         do {
@@ -155,6 +168,7 @@ class HyperionThread(
                 if (client.isConnected()) {
                     clientRef.set(client)
                     connected.set(true)
+                    resetBackoff()
                     callback.onConnected()
                     return
                 }
@@ -162,7 +176,7 @@ class HyperionThread(
                 callback.onConnectionError(e.hashCode(), e.message ?: "Unknown error")
             }
             if (!reconnectEnabled.get() || isInterrupted || paused.get()) return
-            sleepSafe(reconnectDelayMs)
+            sleepSafe(nextReconnectDelayMs())
         } while (true)
     }
 
@@ -182,13 +196,14 @@ class HyperionThread(
         }
         connected.set(false)
 
-        sleepSafe(reconnectDelayMs)
+        sleepSafe(nextReconnectDelayMs())
         if (!connected.get() && !isInterrupted && !paused.get()) {
             try {
                 val newClient = createClient()
                 if (newClient.isConnected()) {
                     clientRef.set(newClient)
                     connected.set(true)
+                    resetBackoff()
                     callback.onConnected()
                 } else {
                     callback.onConnectionError(0, "Failed to reconnect")
@@ -219,5 +234,6 @@ class HyperionThread(
         private const val TAG = "HyperionThread"
         private const val FRAME_DURATION = -1
         private const val SHUTDOWN_TIMEOUT_MS = 100
+        private const val MAX_RECONNECT_DELAY_MS = 30_000L
     }
 }

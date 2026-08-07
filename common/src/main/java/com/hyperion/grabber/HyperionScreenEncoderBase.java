@@ -35,6 +35,11 @@ abstract class HyperionScreenEncoderBase {
     // Mutable state
     protected volatile int mCurrentOrientation;
     private volatile boolean mIsCapturing;
+    protected Runnable mWhiteFrameCallback;
+
+    public void setWhiteFrameCallback(Runnable callback) {
+        mWhiteFrameCallback = callback;
+    }
 
     HyperionScreenEncoderBase(HyperionThread.HyperionThreadListener listener,
                               MediaProjection projection,

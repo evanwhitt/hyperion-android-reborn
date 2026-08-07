@@ -19,6 +19,7 @@ import com.hyperion.grabber.common.network.HyperionThread;
 import com.hyperion.grabber.common.util.BorderProcessor;
 import com.hyperion.grabber.common.util.HyperionGrabberOptions;
 import com.hyperion.grabber.common.util.AnimationSyncController;
+import com.hyperion.grabber.common.util.AdaptiveFrameRate;
 import com.hyperion.grabber.common.util.Preferences;
 import com.hyperion.grabber.common.util.AudioVisualizerController;
 
@@ -54,10 +55,7 @@ public final class HyperionScreenEncoder extends HyperionScreenEncoderBase {
     private int mLastCachedBorderX = -1;
     private int mLastCachedBorderY = -1;
     
-    private long mLastCaptureTimeNs = 0;
-    private int mHighLoadCount = 0;
-    private static final int HIGH_LOAD_THRESHOLD = 3;
-    private static final double DEADLINE_MISS_RATIO = 0.85;
+    private final AdaptiveFrameRate mAdaptiveFps;
     
     private AnimationSyncController mAnimationSync;
     private Preferences mPreferences;
@@ -73,30 +71,31 @@ public final class HyperionScreenEncoder extends HyperionScreenEncoderBase {
     private long mBlackFrameCount;
     private boolean mBlackFallbackTriggered;
     private Runnable mBlackFrameCallback;
-    
+
+    private static final long WHITE_FRAME_THRESHOLD = 60; // ~2s at 30fps
+    private static final int WHITE_LUMA_THRESHOLD = 250;
+    private static final double WHITE_FILL_RATIO = 0.90;
+    private long mWhiteFrameCount;
+    private boolean mWhiteFallbackTriggered;
+
     private final Runnable mCaptureRunnable = new Runnable() {
         @Override
         public void run() {
             if (!mRunning) return;
             
             final long start = System.nanoTime();
-            captureFrame();
+            final long captureTimeNs = captureFrame();
+            final long elapsedMs = (System.nanoTime() - start) / 1_000_000L;
+            long effectiveDelayMs = mAdaptiveFps.update(captureTimeNs) - elapsedMs;
             
-            if (mRunning && mCaptureHandler != null) {
-                final long elapsedMs = (System.nanoTime() - start) / 1_000_000L;
-                long effectiveDelayMs = mFrameIntervalMs - elapsedMs;
-                
-                if (mAnimationSync != null) {
-                    effectiveDelayMs += mAnimationSync.getEffectiveFrameDelayNs() / 1_000_000L;
-                }
-                
-                final long delayMs = Math.max(1L, effectiveDelayMs);
-                mCaptureHandler.postDelayed(this, delayMs);
+            if (mAnimationSync != null) {
+                effectiveDelayMs += mAnimationSync.getEffectiveFrameDelayNs() / 1_000_000L;
             }
+            
+            final long delayMs = Math.max(1L, effectiveDelayMs);
+            mCaptureHandler.postDelayed(this, delayMs);
         }
     };
-    
-    private final long mFrameIntervalMs;
     
     private final VirtualDisplay.Callback mDisplayCallback = new VirtualDisplay.Callback() {
         @Override
@@ -129,7 +128,7 @@ public final class HyperionScreenEncoder extends HyperionScreenEncoderBase {
                           Context context) {
         super(listener, projection, screenWidth, screenHeight, density, options);
 
-        mFrameIntervalMs = 1000L / mFrameRate;
+        mAdaptiveFps = new AdaptiveFrameRate(mFrameRate);
         mMaxCaptureDimension = options.getImageReaderMaxDimension();
         initCaptureDimensions();
         
@@ -212,15 +211,12 @@ public final class HyperionScreenEncoder extends HyperionScreenEncoderBase {
         mCaptureHandler.post(mCaptureRunnable);
     }
     
-    private void captureFrame() {
+    private long captureFrame() {
         long frameStart = System.nanoTime();
         
         if (mAudioOnlyMode && mAudioVisualizer != null) {
             generateAudioVisualization();
-            long captureTime = System.nanoTime() - frameStart;
-            mLastCaptureTimeNs = captureTime;
-            updateLoadTracking(captureTime);
-            return;
+            return System.nanoTime() - frameStart;
         }
         
         Image img = null;
@@ -238,8 +234,19 @@ public final class HyperionScreenEncoder extends HyperionScreenEncoderBase {
                 } else {
                     mBlackFrameCount = 0;
                 }
-                boolean skipBorderDetection = mHighLoadCount > 0;
-                boolean skipAverageColor = mHighLoadCount > HIGH_LOAD_THRESHOLD;
+                if (!mWhiteFallbackTriggered && isFrameWhite(img)) {
+                    mWhiteFrameCount++;
+                    if (mWhiteFrameCount >= WHITE_FRAME_THRESHOLD) {
+                        mWhiteFallbackTriggered = true;
+                        if (mWhiteFrameCallback != null) {
+                            mWhiteFrameCallback.run();
+                        }
+                    }
+                } else {
+                    mWhiteFrameCount = 0;
+                }
+                boolean skipBorderDetection = mAdaptiveFps.highLoadCount() > 0;
+                boolean skipAverageColor = mAdaptiveFps.underHighLoad();
                 processImage(img, skipBorderDetection, skipAverageColor);
             }
         } catch (IllegalStateException e) {
@@ -255,10 +262,8 @@ public final class HyperionScreenEncoder extends HyperionScreenEncoderBase {
                     Log.w(TAG, "Failed to close image: " + e.getMessage());
                 }
             }
-            long captureTime = System.nanoTime() - frameStart;
-            mLastCaptureTimeNs = captureTime;
-            updateLoadTracking(captureTime);
         }
+        return System.nanoTime() - frameStart;
     }
     
     private void generateAudioVisualization() {
@@ -280,14 +285,6 @@ public final class HyperionScreenEncoder extends HyperionScreenEncoderBase {
         
         mListener.sendFrame(rgb, mCaptureWidth, mCaptureHeight);
         mRgbBufferIndex = (mRgbBufferIndex + 1) % RGB_BUFFER_RING_SIZE;
-    }
-
-    private void updateLoadTracking(long captureTimeNs) {
-        if (captureTimeNs > (long)(mFrameIntervalMs * 1_000_000 * DEADLINE_MISS_RATIO)) {
-            mHighLoadCount = Math.min(5, mHighLoadCount + 1);
-        } else {
-            mHighLoadCount = Math.max(0, mHighLoadCount - 1);
-        }
     }
 
     private void processImage(Image img, boolean skipBorderDetection, boolean skipAverageColor) {
@@ -346,6 +343,40 @@ public final class HyperionScreenEncoder extends HyperionScreenEncoderBase {
         }
         if (samples == 0) return false;
         return (sum / samples) < BLACK_LUMA_THRESHOLD;
+    }
+
+    private boolean isFrameWhite(Image img) {
+        Image.Plane plane = img.getPlanes()[0];
+        ByteBuffer buffer = plane.getBuffer();
+        int width = img.getWidth();
+        int height = img.getHeight();
+        int rowStride = plane.getRowStride();
+        int pixelStride = plane.getPixelStride();
+        return isFrameWhite(buffer, width, height, rowStride, pixelStride);
+    }
+
+    public static boolean isFrameWhite(ByteBuffer buffer, int width, int height,
+                                int rowStride, int pixelStride) {
+        if (width <= 0 || height <= 0 || buffer == null) return false;
+        final int base = buffer.position();
+        final int step = Math.max(4, Math.max(width, height) / 24);
+        int bright = 0;
+        int total = 0;
+        for (int y = 0; y < height; y += step) {
+            final int row = base + y * rowStride;
+            for (int x = 0; x < width; x += step) {
+                final int off = row + x * pixelStride;
+                int r = buffer.get(off) & 0xFF;
+                int g = buffer.get(off + 1) & 0xFF;
+                int b = buffer.get(off + 2) & 0xFF;
+                if (r >= WHITE_LUMA_THRESHOLD && g >= WHITE_LUMA_THRESHOLD && b >= WHITE_LUMA_THRESHOLD) {
+                    bright++;
+                }
+                total++;
+            }
+        }
+        if (total == 0) return false;
+        return (bright / (double) total) >= WHITE_FILL_RATIO;
     }
     
     private void updateBorderDetection(ByteBuffer buffer, int width, int height, 

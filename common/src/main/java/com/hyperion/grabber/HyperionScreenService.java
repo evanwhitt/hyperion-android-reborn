@@ -24,6 +24,7 @@ import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 import android.util.DisplayMetrics;
 import android.util.Log;
 import android.view.WindowManager;
+import android.widget.Toast;
 
 import com.hyperion.grabber.common.network.HyperionThread;
 import com.hyperion.grabber.common.util.HyperionGrabberOptions;
@@ -436,6 +437,7 @@ public class HyperionScreenService extends Service {
                         metrics.densityDpi,
                         options,
                         this);
+                mHyperionEncoder.setWhiteFrameCallback(() -> mHandler.post(this::warnHdrWhiteFrames));
                 Log.i(TAG, "Using codec capture method");
             } catch (Exception e) {
                 Log.e(TAG, "Codec capture failed to initialize, falling back to ImageReader: " + e.getMessage());
@@ -459,6 +461,7 @@ public class HyperionScreenService extends Service {
                     mHandler.post(HyperionScreenService.this::restartWithCodec);
                 });
             }
+            mHyperionEncoder.setWhiteFrameCallback(() -> mHandler.post(this::warnHdrWhiteFrames));
         }
         mHyperionEncoder.sendStatus();
      }
@@ -505,6 +508,7 @@ public class HyperionScreenService extends Service {
                     mScreenWidth, mScreenHeight, mScreenDensity,
                     options,
                     this);
+            mHyperionEncoder.setWhiteFrameCallback(() -> mHandler.post(this::warnHdrWhiteFrames));
             mHyperionEncoder.sendStatus();
             prefs.putString(R.string.pref_key_capture_method, "codec");
         } catch (Exception e) {
@@ -519,6 +523,19 @@ public class HyperionScreenService extends Service {
         if ("low".equals(value)) return 0;
         if ("high".equals(value)) return 2;
         return 1; // medium
+    }
+
+    private void warnHdrWhiteFrames() {
+        Log.w(TAG, "Persistent white frames detected, likely HDR video the capture path can't decode");
+        String message = getString(R.string.hdr_white_frames_warning);
+        try {
+            Toast.makeText(this, message, Toast.LENGTH_LONG).show();
+        } catch (Exception ignored) {
+        }
+        Intent intent = new Intent(BROADCAST_FILTER);
+        intent.putExtra(BROADCAST_TAG, isCommunicating());
+        intent.putExtra(BROADCAST_ERROR, message);
+        LocalBroadcastManager.getInstance(getApplicationContext()).sendBroadcast(intent);
     }
 
     private void stopScreenRecord() {
