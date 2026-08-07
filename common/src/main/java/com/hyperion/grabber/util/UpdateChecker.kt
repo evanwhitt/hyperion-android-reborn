@@ -64,6 +64,12 @@ class UpdateChecker {
             val downloadUrl = findApkUrl(release)
             if (downloadUrl.isEmpty()) continue
 
+            // Stable installs shouldn't be offered prerelease (beta) builds;
+            // if you're already on a beta, newer betas and stable both apply.
+            val isPrerelease = release.optBoolean("prerelease", false)
+            if (isPrerelease && !currentVersion.lowercase().contains("-beta")
+                && !currentVersion.lowercase().contains("-rc")) continue
+
             // "latest" (the CI auto-build) has no real version, so it can never be
             // "newer" than a normal tagged release.
             if (isNewerVersion(tagName, currentVersion)) {
