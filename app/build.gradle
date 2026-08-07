@@ -13,8 +13,8 @@ android {
         applicationId "com.hyperion.grabber"
         minSdk 21
         targetSdk 34
-        versionCode 4100
-        versionName "4.1.0"
+        versionCode 4101
+        versionName "4.1.1"
     }
     
     buildTypes {

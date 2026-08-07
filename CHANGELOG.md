@@ -9,6 +9,10 @@
 
 
 
+# [v4.1.1]
+### Fixed
+- Codec capture auto-crop: it locked on once and never re-checked, so if the first frames were full-frame it stayed uncropped and the screen showed tiny in the top-left. It now keeps detecting and re-crops when the content area changes.
+
 # [v4.1]
 ### Fixed
 - Codec capture method: on some TV boxes (Amlogic etc.) the screen came through tiny and in the top-left corner because the encoder frame letterboxes the real picture. The active content area is now detected once and auto-cropped. Big thanks to **robin** for the fix ([fork](https://gitea.datadrake.cloud/robin/hyperion-android-reborn-edited))
