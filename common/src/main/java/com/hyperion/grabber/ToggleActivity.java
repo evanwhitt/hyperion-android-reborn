@@ -13,15 +13,17 @@ import androidx.appcompat.app.AppCompatActivity;
 
 public class ToggleActivity extends AppCompatActivity {
     public static final int REQUEST_MEDIA_PROJECTION = 1;
+    public static final String EXTRA_RESTART = "restart_capture";
 
     @RequiresApi(api = Build.VERSION_CODES.LOLLIPOP)
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
+        boolean restart = getIntent().getBooleanExtra(EXTRA_RESTART, false);
         boolean serviceRunning = checkForInstance();
 
-        if (serviceRunning) {
+        if (serviceRunning && !restart) {
             stopService();
             finish();
         } else {

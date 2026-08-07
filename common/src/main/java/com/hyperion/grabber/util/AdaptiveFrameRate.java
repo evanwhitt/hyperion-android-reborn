@@ -30,6 +30,10 @@ public final class AdaptiveFrameRate {
         return mHighLoadCount > HIGH_LOAD_THRESHOLD;
     }
 
+    public boolean isMaxedOut() {
+        return mStep >= MAX_STEPS;
+    }
+
     public long update(long captureTimeNs) {
         if (captureTimeNs > (long) (mBaseIntervalMs * 1_000_000L * DEADLINE_MISS_RATIO)) {
             mHighLoadCount = Math.min(MAX_LOAD_COUNT, mHighLoadCount + 1);

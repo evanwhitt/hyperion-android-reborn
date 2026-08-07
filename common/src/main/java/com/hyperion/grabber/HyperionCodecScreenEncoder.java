@@ -56,10 +56,19 @@ public final class HyperionCodecScreenEncoder extends HyperionScreenEncoderBase 
 
     private int mCaptureWidth;
     private int mCaptureHeight;
+    private int mScreenWidth;
+    private int mScreenHeight;
     private int mOutWidth;
     private int mOutHeight;
     private final AdaptiveFrameRate mAdaptiveFps;
     private final int mMaxCaptureDimension;
+    private float mResolutionScale = 1f;
+    private int mSlowFrames;
+    private int mHealthyFrames;
+    private static final float MIN_RESOLUTION_SCALE = 0.5f;
+    private static final float RESOLUTION_DROP_STEP = 0.75f;
+    private static final int SLOW_FRAMES_FOR_DROP = 30;
+    private static final int HEALTHY_FRAMES_FOR_RESTORE = 90;
     private byte[] mRgbBuffer;
     private final byte[] mAvgColorResult = new byte[3];
 
@@ -110,6 +119,8 @@ public final class HyperionCodecScreenEncoder extends HyperionScreenEncoderBase 
         super(listener, projection, screenWidth, screenHeight, density, options);
         mAdaptiveFps = new AdaptiveFrameRate(mFrameRate);
         mMaxCaptureDimension = options.getCodecMaxDimension();
+        mScreenWidth = screenWidth;
+        mScreenHeight = screenHeight;
         computeCaptureSize(screenWidth, screenHeight);
         mOutWidth = getGrabberWidth();
         mOutHeight = getGrabberHeight();
@@ -119,24 +130,21 @@ public final class HyperionCodecScreenEncoder extends HyperionScreenEncoderBase 
 
     /** Keeps the capture size at the display's aspect ratio so the encoder frame isn't letterboxed. */
     private void computeCaptureSize(int screenWidth, int screenHeight) {
+        int maxW = Math.max(16, (int) (mMaxCaptureDimension * mResolutionScale));
         if (screenWidth <= 0 || screenHeight <= 0) {
-            mCaptureWidth = mMaxCaptureDimension;
-            mCaptureHeight = Math.max(16, mMaxCaptureDimension * 9 / 16);
+            mCaptureWidth = maxW;
+            mCaptureHeight = Math.max(16, maxW * 9 / 16);
             return;
         }
-        float maxHeight = Math.max(16, mMaxCaptureDimension * (float) screenHeight / Math.max(1, screenWidth));
+        float maxHeight = Math.max(16, maxW * (float) screenHeight / Math.max(1, screenWidth));
         float scale = Math.min(
-                (float) mMaxCaptureDimension / screenWidth,
+                (float) maxW / screenWidth,
                 maxHeight / screenHeight);
         mCaptureWidth = Math.max(16, Math.round(screenWidth * scale)) & ~1;
         mCaptureHeight = Math.max(16, Math.round(screenHeight * scale)) & ~1;
     }
 
     private void init() {
-        mCaptureThread = new HandlerThread(TAG, android.os.Process.THREAD_PRIORITY_BACKGROUND);
-        mCaptureThread.start();
-        mCaptureHandler = new Handler(mCaptureThread.getLooper());
-
         mMediaProjection.registerCallback(new MediaProjection.Callback() {
             @Override
             public void onStop() {
@@ -151,6 +159,9 @@ public final class HyperionCodecScreenEncoder extends HyperionScreenEncoderBase 
         mContentBoundsLocked = false;
         mContentBoundsValid = false;
         mStableBoundsCount = 0;
+        mCaptureThread = new HandlerThread(TAG, android.os.Process.THREAD_PRIORITY_BACKGROUND);
+        mCaptureThread.start();
+        mCaptureHandler = new Handler(mCaptureThread.getLooper());
         try {
             mEncoder = createEncoder();
             mInputSurface = mEncoder.createInputSurface();
@@ -172,6 +183,18 @@ public final class HyperionCodecScreenEncoder extends HyperionScreenEncoderBase 
             setCapturing(false);
             releaseResources();
         }
+    }
+
+    private void rebuildCapture() {
+        mRunning = false;
+        setCapturing(false);
+        if (mCaptureHandler != null) {
+            mCaptureHandler.removeCallbacksAndMessages(null);
+        }
+        mAdaptiveFps.reset();
+        computeCaptureSize(mScreenWidth, mScreenHeight);
+        releaseResources();
+        startPipeline();
     }
 
     private MediaCodec createEncoder() throws Exception {
@@ -232,6 +255,28 @@ public final class HyperionCodecScreenEncoder extends HyperionScreenEncoderBase 
                 if (DEBUG) Log.w(TAG, "Codec step error: " + e.getMessage(), e);
             }
             if (mRunning && mCaptureHandler != null) {
+                if (mAdaptiveFps.isMaxedOut()) {
+                    mHealthyFrames = 0;
+                    mSlowFrames++;
+                    if (mSlowFrames >= SLOW_FRAMES_FOR_DROP && mResolutionScale > MIN_RESOLUTION_SCALE) {
+                        mSlowFrames = 0;
+                        mResolutionScale = Math.max(MIN_RESOLUTION_SCALE, mResolutionScale * RESOLUTION_DROP_STEP);
+                        rebuildCapture();
+                        return;
+                    }
+                } else {
+                    mSlowFrames = 0;
+                    if (mResolutionScale < 1f) {
+                        mHealthyFrames++;
+                        if (mHealthyFrames >= HEALTHY_FRAMES_FOR_RESTORE) {
+                            mHealthyFrames = 0;
+                            mResolutionScale = Math.min(1f, mResolutionScale / RESOLUTION_DROP_STEP);
+                            if (mResolutionScale > 0.99f) mResolutionScale = 1f;
+                            rebuildCapture();
+                            return;
+                        }
+                    }
+                }
                 mCaptureHandler.postDelayed(this,
                         Math.max(1L, mAdaptiveFps.update(System.nanoTime() - stepStart)));
             }
@@ -325,6 +370,7 @@ public final class HyperionCodecScreenEncoder extends HyperionScreenEncoderBase 
                     sendAverageColor();
                 } else {
                     mListener.sendFrame(mRgbBuffer, mOutWidth, mOutHeight);
+                    markFrameSent();
                 }
             }
         } catch (Exception e) {
@@ -378,7 +424,18 @@ public final class HyperionCodecScreenEncoder extends HyperionScreenEncoderBase 
             mAvgColorResult[1] = (byte) (g / count);
             mAvgColorResult[2] = (byte) (b / count);
             mListener.sendFrame(mAvgColorResult, 1, 1);
+            markFrameSent();
         }
+    }
+
+    @Override
+    public int getCaptureWidth() {
+        return mCaptureWidth;
+    }
+
+    @Override
+    public int getCaptureHeight() {
+        return mCaptureHeight;
     }
 
     /** YUV420 (I420 / NV12 / flexible) to RGB point-sampled downscale. */
@@ -461,10 +518,27 @@ public final class HyperionCodecScreenEncoder extends HyperionScreenEncoderBase 
         final float fill = (detected.width() * (float) detected.height())
                 / Math.max(1, crop.width() * crop.height());
 
+        if (mContentBoundsLocked) {
+            if (boundsSubstantiallyDifferent(mContentBounds, detected, crop.width(), crop.height())) {
+                if (boundsSimilar(mPendingBounds, detected, CONTENT_BOUNDS_HYSTERESIS_PX)) {
+                    mStableBoundsCount++;
+                    if (mStableBoundsCount >= CONTENT_BOUNDS_LOCK_STABLE) {
+                        mContentBounds.set(detected);
+                        Log.i(TAG, "Content bounds RELOCKED " + detected.toShortString());
+                    }
+                } else {
+                    mPendingBounds.set(detected);
+                    mStableBoundsCount = 1;
+                }
+            }
+            return;
+        }
+
         if (fill > LETTERBOX_FILL_MIN && fill <= LETTERBOX_FILL_MAX) {
             mContentBounds.set(detected);
             mContentBoundsValid = true;
             mContentBoundsLocked = true;
+            Log.i(TAG, "Content bounds LOCKED " + detected.toShortString());
             return;
         }
 
@@ -473,6 +547,8 @@ public final class HyperionCodecScreenEncoder extends HyperionScreenEncoderBase 
             mPendingBounds.set(detected);
             mContentBoundsValid = true;
             mStableBoundsCount = 1;
+            Log.i(TAG, "Content bounds fallback full-frame fill="
+                    + String.format(java.util.Locale.US, "%.3f", fill));
             return;
         }
 
@@ -481,11 +557,24 @@ public final class HyperionCodecScreenEncoder extends HyperionScreenEncoderBase 
             if (mStableBoundsCount >= CONTENT_BOUNDS_LOCK_STABLE) {
                 mContentBounds.set(detected);
                 mContentBoundsLocked = true;
+                Log.i(TAG, "Content bounds LOCKED (stable) " + mContentBounds.toShortString());
             }
         } else {
             mPendingBounds.set(detected);
             mStableBoundsCount = 1;
         }
+    }
+
+    private static boolean boundsSubstantiallyDifferent(Rect a, Rect b, int frameW, int frameH) {
+        if (a == null || b == null) return true;
+        long areaA = (long) a.width() * a.height();
+        long areaB = (long) b.width() * b.height();
+        long frameArea = Math.max(1, (long) frameW * frameH);
+        if (Math.abs(areaA - areaB) > frameArea / 6) return true;
+        return Math.abs(a.left - b.left) > CONTENT_BOUNDS_HYSTERESIS_PX
+                || Math.abs(a.top - b.top) > CONTENT_BOUNDS_HYSTERESIS_PX
+                || Math.abs(a.right - b.right) > CONTENT_BOUNDS_HYSTERESIS_PX
+                || Math.abs(a.bottom - b.bottom) > CONTENT_BOUNDS_HYSTERESIS_PX;
     }
 
     private Rect detectLetterboxByEdges(ByteBuffer yBuf, int yRowStride, int yPixelStride, Rect crop) {

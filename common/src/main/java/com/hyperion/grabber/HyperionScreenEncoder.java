@@ -56,6 +56,13 @@ public final class HyperionScreenEncoder extends HyperionScreenEncoderBase {
     private int mLastCachedBorderY = -1;
     
     private final AdaptiveFrameRate mAdaptiveFps;
+    private float mResolutionScale = 1f;
+    private int mSlowFrames;
+    private int mHealthyFrames;
+    private static final float MIN_RESOLUTION_SCALE = 0.5f;
+    private static final float RESOLUTION_DROP_STEP = 0.75f;
+    private static final int SLOW_FRAMES_FOR_DROP = 30;
+    private static final int HEALTHY_FRAMES_FOR_RESTORE = 90;
     
     private AnimationSyncController mAnimationSync;
     private Preferences mPreferences;
@@ -87,6 +94,29 @@ public final class HyperionScreenEncoder extends HyperionScreenEncoderBase {
             final long captureTimeNs = captureFrame();
             final long elapsedMs = (System.nanoTime() - start) / 1_000_000L;
             long effectiveDelayMs = mAdaptiveFps.update(captureTimeNs) - elapsedMs;
+            
+            if (mAdaptiveFps.isMaxedOut()) {
+                mHealthyFrames = 0;
+                mSlowFrames++;
+                if (mSlowFrames >= SLOW_FRAMES_FOR_DROP && mResolutionScale > MIN_RESOLUTION_SCALE) {
+                    mSlowFrames = 0;
+                    mResolutionScale = Math.max(MIN_RESOLUTION_SCALE, mResolutionScale * RESOLUTION_DROP_STEP);
+                    rebuildCapture();
+                    return;
+                }
+            } else {
+                mSlowFrames = 0;
+                if (mResolutionScale < 1f) {
+                    mHealthyFrames++;
+                    if (mHealthyFrames >= HEALTHY_FRAMES_FOR_RESTORE) {
+                        mHealthyFrames = 0;
+                        mResolutionScale = Math.min(1f, mResolutionScale / RESOLUTION_DROP_STEP);
+                        if (mResolutionScale > 0.99f) mResolutionScale = 1f;
+                        rebuildCapture();
+                        return;
+                    }
+                }
+            }
             
             if (mAnimationSync != null) {
                 effectiveDelayMs += mAnimationSync.getEffectiveFrameDelayNs() / 1_000_000L;
@@ -159,7 +189,7 @@ public final class HyperionScreenEncoder extends HyperionScreenEncoderBase {
     }
     
     private void initCaptureDimensions() {
-        final int maxW = mMaxCaptureDimension;
+        final int maxW = Math.max(4, (int) (mMaxCaptureDimension * mResolutionScale));
         final int maxH = Math.max(4, Math.round(maxW * (float) getGrabberHeight() / Math.max(1, getGrabberWidth())));
         int w = Math.max(4, Math.min(getGrabberWidth(), maxW));
         int h = Math.max(4, Math.min(getGrabberHeight(), maxH));
@@ -284,6 +314,7 @@ public final class HyperionScreenEncoder extends HyperionScreenEncoderBase {
         }
         
         mListener.sendFrame(rgb, mCaptureWidth, mCaptureHeight);
+        markFrameSent();
         mRgbBufferIndex = (mRgbBufferIndex + 1) % RGB_BUFFER_RING_SIZE;
     }
 
@@ -312,6 +343,16 @@ public final class HyperionScreenEncoder extends HyperionScreenEncoderBase {
     /** Called once when the ImageReader path produces persistent black frames. */
     void setBlackFrameCallback(Runnable callback) {
         mBlackFrameCallback = callback;
+    }
+
+    @Override
+    public int getCaptureWidth() {
+        return mCaptureWidth;
+    }
+
+    @Override
+    public int getCaptureHeight() {
+        return mCaptureHeight;
     }
 
     private boolean isFrameBlack(Image img) {
@@ -417,6 +458,7 @@ public final class HyperionScreenEncoder extends HyperionScreenEncoderBase {
         }
         
         mListener.sendFrame(rgb, effWidth, effHeight);
+        markFrameSent();
         
         mRgbBufferIndex = (mRgbBufferIndex + 1) % RGB_BUFFER_RING_SIZE;
     }
@@ -520,6 +562,7 @@ public final class HyperionScreenEncoder extends HyperionScreenEncoderBase {
             mAvgColorResult[1] = (byte) (g / count);
             mAvgColorResult[2] = (byte) (b / count);
             mListener.sendFrame(mAvgColorResult, 1, 1);
+            markFrameSent();
         }
     }
 
@@ -601,27 +644,33 @@ public final class HyperionScreenEncoder extends HyperionScreenEncoderBase {
         mCaptureWidth = mCaptureHeight;
         mCaptureHeight = tmp;
         
+        rebuildCapture();
+    }
+
+    private void rebuildCapture() {
         if (mCaptureHandler != null) {
             mCaptureHandler.removeCallbacksAndMessages(null);
         }
-        
+        initCaptureDimensions();
+        mAdaptiveFps.reset();
+
         mVirtualDisplay.resize(mCaptureWidth, mCaptureHeight, mDensity);
-        
+
         if (mImageReader != null) {
             mImageReader.close();
         }
-        
+
         mImageReader = ImageReader.newInstance(
                 mCaptureWidth, mCaptureHeight,
                 PixelFormat.RGBA_8888,
                 IMAGE_READER_IMAGES);
-        
+
         mVirtualDisplay.setSurface(mImageReader.getSurface());
-        
+
         mRgbBufferRing = new byte[RGB_BUFFER_RING_SIZE][];
         mRgbBufferIndex = 0;
         mRowBuffer = null;
-        
+
         startCapture();
     }
 

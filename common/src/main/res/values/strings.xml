@@ -79,6 +79,11 @@
   <string name="error_no_host_name_extra">That\'s weird, expected a hostname here</string>
   <string name="notification_channel_label">Hyperion Grabber Notifications</string>
   <string name="notification_description">Currently grabbing screen content</string>
+  <string name="notification_status_active">Grabbing · %1$dx%2$d · %3$.1f fps</string>
+  <string name="notification_status_reconnecting">Waiting for Hyperion · %1$dx%2$d</string>
+  <string name="notification_status_paused">Paused · %1$dx%2$d</string>
+  <string name="notification_status_restart">Capture stopped — restart it from the app</string>
+  <string name="notification_restart_button">Restart</string>
    <string name="pref_title_use_avg_color">Send Average Screen Color</string>
    <string name="pref_summary_use_avg_color">Sends the average color of your device\'s screen rather than an image of it</string>
    <string name="pref_group_sync">Synchronization</string>

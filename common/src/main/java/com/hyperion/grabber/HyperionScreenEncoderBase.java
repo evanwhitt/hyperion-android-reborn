@@ -36,9 +36,32 @@ abstract class HyperionScreenEncoderBase {
     protected volatile int mCurrentOrientation;
     private volatile boolean mIsCapturing;
     protected Runnable mWhiteFrameCallback;
+    private volatile long mSentFrameCount;
+    private volatile long mLastFrameSentMs;
 
     public void setWhiteFrameCallback(Runnable callback) {
         mWhiteFrameCallback = callback;
+    }
+
+    protected void markFrameSent() {
+        mSentFrameCount++;
+        mLastFrameSentMs = System.currentTimeMillis();
+    }
+
+    public long getSentFrameCount() {
+        return mSentFrameCount;
+    }
+
+    public long getLastFrameSentMs() {
+        return mLastFrameSentMs;
+    }
+
+    public int getCaptureWidth() {
+        return getGrabberWidth();
+    }
+
+    public int getCaptureHeight() {
+        return getGrabberHeight();
     }
 
     HyperionScreenEncoderBase(HyperionThread.HyperionThreadListener listener,

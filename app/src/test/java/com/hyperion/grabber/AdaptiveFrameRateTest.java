@@ -89,6 +89,27 @@ public class AdaptiveFrameRateTest {
     }
 
     @Test
+    public void maxedOutAfterSustainedLoad() {
+        AdaptiveFrameRate fps = new AdaptiveFrameRate(30);
+        long slow = 40L * 1_000_000L;
+        assertFalse(fps.isMaxedOut());
+        for (int i = 0; i < 40; i++) {
+            fps.update(slow);
+        }
+        assertTrue(fps.isMaxedOut());
+    }
+
+    @Test
+    public void notMaxedOutWhenFast() {
+        AdaptiveFrameRate fps = new AdaptiveFrameRate(30);
+        long fast = 5L * 1_000_000L;
+        for (int i = 0; i < 40; i++) {
+            fps.update(fast);
+        }
+        assertFalse(fps.isMaxedOut());
+    }
+
+    @Test
     public void lowFrameRateHasNoRoomToBackOff() {
         AdaptiveFrameRate fps = new AdaptiveFrameRate(5);
         long slow = 250L * 1_000_000L;

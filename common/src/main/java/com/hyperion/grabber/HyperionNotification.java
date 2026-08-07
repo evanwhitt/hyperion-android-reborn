@@ -19,7 +19,17 @@ public class HyperionNotification {
     private final int PENDING_INTENT_REQUEST_CODE = 0;
     private final NotificationManager mNotificationManager;
     private final Context mContext;
-    private Notification.Action mAction = null;
+    private final java.util.ArrayList<ActionSpec> mActions = new java.util.ArrayList<>();
+
+    private static class ActionSpec {
+        final String label;
+        final PendingIntent pendingIntent;
+
+        ActionSpec(String label, PendingIntent pendingIntent) {
+            this.label = label;
+            this.pendingIntent = pendingIntent;
+        }
+    }
 
     HyperionNotification (Context ctx, NotificationManager manager) {
         mNotificationManager = manager;
@@ -43,23 +53,28 @@ public class HyperionNotification {
     public void setAction(int code, String label, Intent intent) {
         PendingIntent pendingIntent = PendingIntent.getService(mContext, code,
                 intent, getPendingIntentFlags());
+        addAction(label, pendingIntent);
+    }
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            mAction = new Notification.Action.Builder(
-                    Icon.createWithResource(mContext, R.drawable.ic_notification_icon),
-                    label,
-                    pendingIntent
-            ).build();
-        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT_WATCH) {
-            mAction = new Notification.Action.Builder(
-                    R.drawable.ic_notification_icon,
-                    label,
-                    pendingIntent
-            ).build();
-        }
+    public void setActivityAction(int code, String label, Intent intent) {
+        PendingIntent pendingIntent = PendingIntent.getActivity(mContext, code,
+                intent, getPendingIntentFlags());
+        addAction(label, pendingIntent);
+    }
+
+    private void addAction(String label, PendingIntent pendingIntent) {
+        mActions.add(new ActionSpec(label, pendingIntent));
+    }
+
+    public void clearActions() {
+        mActions.clear();
     }
 
     public Notification buildNotification() {
+        return buildNotification(NOTIFICATION_DESCRIPTION);
+    }
+
+    public Notification buildNotification(String contentText) {
         PendingIntent pIntent = null;
         Intent intent = mContext.getPackageManager().getLaunchIntentForPackage(mContext.getPackageName());
         if (intent != null) {
@@ -72,9 +87,13 @@ public class HyperionNotification {
                     .setOngoing(true)
                     .setSmallIcon(R.drawable.ic_notification_icon)
                     .setContentTitle(NOTIFICATION_TITLE)
-                    .setContentText(NOTIFICATION_DESCRIPTION);
-            if (mAction != null) {
-                builder.addAction(mAction);
+                    .setContentText(contentText);
+            for (ActionSpec spec : mActions) {
+                builder.addAction(new Notification.Action.Builder(
+                        Icon.createWithResource(mContext, R.drawable.ic_notification_icon),
+                        spec.label,
+                        spec.pendingIntent
+                ).build());
             }
             if (pIntent != null) {
                 builder.setContentIntent(pIntent);
@@ -88,7 +107,10 @@ public class HyperionNotification {
                     .setPriority(NotificationCompat.PRIORITY_MAX)
                     .setSmallIcon(R.drawable.ic_notification_icon)
                     .setContentTitle(NOTIFICATION_TITLE)
-                    .setContentText(NOTIFICATION_DESCRIPTION);
+                    .setContentText(contentText);
+            for (ActionSpec spec : mActions) {
+                builder.addAction(R.drawable.ic_notification_icon, spec.label, spec.pendingIntent);
+            }
             if (pIntent != null) {
                 builder.setContentIntent(pIntent);
             }
