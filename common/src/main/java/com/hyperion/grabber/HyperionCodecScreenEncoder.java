@@ -74,6 +74,7 @@ public final class HyperionCodecScreenEncoder extends HyperionScreenEncoderBase 
     private boolean mContentBoundsValid;
     private boolean mContentBoundsLocked;
     private int mStableBoundsCount;
+    private int mDiagFrames;
 
     private final VirtualDisplay.Callback mDisplayCallback = new VirtualDisplay.Callback() {
         @Override
@@ -107,6 +108,9 @@ public final class HyperionCodecScreenEncoder extends HyperionScreenEncoderBase 
         mOutWidth = getGrabberWidth();
         mOutHeight = getGrabberHeight();
         mRgbBuffer = new byte[mOutWidth * mOutHeight * 3];
+        Log.i(TAG, "DIAG screen=" + screenWidth + "x" + screenHeight
+                + " capture=" + mCaptureWidth + "x" + mCaptureHeight
+                + " output=" + mOutWidth + "x" + mOutHeight + " fps=" + mFrameRate);
         init();
     }
 
@@ -300,6 +304,22 @@ public final class HyperionCodecScreenEncoder extends HyperionScreenEncoderBase 
         try {
             image = mDecoder.getOutputImage(index);
             if (image != null) {
+                if (mDiagFrames < 5) {
+                    mDiagFrames++;
+                    Image.Plane[] pl = image.getPlanes();
+                    Image.Plane yp = pl[0];
+                    Log.i(TAG, "DIAG frame=" + mDiagFrames
+                            + " img=" + image.getWidth() + "x" + image.getHeight()
+                            + " crop=" + image.getCropRect().toShortString()
+                            + " planes=" + pl.length
+                            + " yRow=" + yp.getRowStride() + " yPix=" + yp.getPixelStride()
+                            + " yPos=" + yp.getBuffer().position()
+                            + " cap=" + mCaptureWidth + "x" + mCaptureHeight
+                            + " out=" + mOutWidth + "x" + mOutHeight
+                            + " content=" + mContentBounds.toShortString()
+                            + " locked=" + mContentBoundsLocked
+                            + " valid=" + mContentBoundsValid);
+                }
                 convertYuvToRgb(image, mRgbBuffer, mOutWidth, mOutHeight);
                 if (mAvgColor) {
                     sendAverageColor();
@@ -411,10 +431,33 @@ public final class HyperionCodecScreenEncoder extends HyperionScreenEncoderBase 
         final float fill = (detected.width() * (float) detected.height())
                 / Math.max(1, crop.width() * crop.height());
 
+        Log.i(TAG, "DIAG detect=" + detected.toShortString()
+                + " fill=" + String.format(java.util.Locale.US, "%.3f", fill)
+                + " pending=" + mPendingBounds.toShortString()
+                + " stable=" + mStableBoundsCount
+                + " locked=" + mContentBoundsLocked);
+
+        if (mContentBoundsLocked) {
+            if (boundsSubstantiallyDifferent(mContentBounds, detected, crop.width(), crop.height())) {
+                if (boundsSimilar(mPendingBounds, detected, CONTENT_BOUNDS_HYSTERESIS_PX)) {
+                    mStableBoundsCount++;
+                    if (mStableBoundsCount >= CONTENT_BOUNDS_LOCK_STABLE) {
+                        mContentBounds.set(detected);
+                        Log.i(TAG, "Content bounds RELOCKED " + detected.toShortString());
+                    }
+                } else {
+                    mPendingBounds.set(detected);
+                    mStableBoundsCount = 1;
+                }
+            }
+            return;
+        }
+
         if (fill > LETTERBOX_FILL_MIN && fill <= LETTERBOX_FILL_MAX) {
             mContentBounds.set(detected);
             mContentBoundsValid = true;
             mContentBoundsLocked = true;
+            Log.i(TAG, "Content bounds LOCKED " + detected.toShortString());
             return;
         }
 
@@ -423,6 +466,8 @@ public final class HyperionCodecScreenEncoder extends HyperionScreenEncoderBase 
             mPendingBounds.set(detected);
             mContentBoundsValid = true;
             mStableBoundsCount = 1;
+            Log.i(TAG, "Content bounds fallback full-frame fill="
+                    + String.format(java.util.Locale.US, "%.3f", fill));
             return;
         }
 
@@ -431,11 +476,24 @@ public final class HyperionCodecScreenEncoder extends HyperionScreenEncoderBase 
             if (mStableBoundsCount >= CONTENT_BOUNDS_LOCK_STABLE) {
                 mContentBounds.set(detected);
                 mContentBoundsLocked = true;
+                Log.i(TAG, "Content bounds LOCKED (stable) " + mContentBounds.toShortString());
             }
         } else {
             mPendingBounds.set(detected);
             mStableBoundsCount = 1;
         }
+    }
+
+    private static boolean boundsSubstantiallyDifferent(Rect a, Rect b, int frameW, int frameH) {
+        if (a == null || b == null) return true;
+        long areaA = (long) a.width() * a.height();
+        long areaB = (long) b.width() * b.height();
+        long frameArea = Math.max(1, (long) frameW * frameH);
+        if (Math.abs(areaA - areaB) > frameArea / 6) return true;
+        return Math.abs(a.left - b.left) > CONTENT_BOUNDS_HYSTERESIS_PX
+                || Math.abs(a.top - b.top) > CONTENT_BOUNDS_HYSTERESIS_PX
+                || Math.abs(a.right - b.right) > CONTENT_BOUNDS_HYSTERESIS_PX
+                || Math.abs(a.bottom - b.bottom) > CONTENT_BOUNDS_HYSTERESIS_PX;
     }
 
     private Rect detectLetterboxByEdges(ByteBuffer yBuf, int yRowStride, int yPixelStride, Rect crop) {
