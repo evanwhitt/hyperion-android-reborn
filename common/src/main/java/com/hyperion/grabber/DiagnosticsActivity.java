@@ -24,9 +24,9 @@ import java.util.Locale;
 
 public class DiagnosticsActivity extends AppCompatActivity {
 
-    private final TextView mStats = new TextView(this);
-    private final ImageView mPreview = new ImageView(this);
-    private final TextView mLogs = new TextView(this);
+    private TextView mStats;
+    private ImageView mPreview;
+    private TextView mLogs;
 
     private final BroadcastReceiver mDiagReceiver = new BroadcastReceiver() {
         @Override
@@ -57,6 +57,10 @@ public class DiagnosticsActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
+        mStats = new TextView(this);
+        mPreview = new ImageView(this);
+        mLogs = new TextView(this);
 
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
