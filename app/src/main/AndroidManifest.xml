@@ -83,6 +83,10 @@
             </intent-filter>
         </activity>
 
+        <activity
+            android:name="com.hyperion.grabber.common.DiagnosticsActivity"
+            android:exported="false" />
+
         <service
             android:name=".HyperionGrabberTileService"
             android:icon="@drawable/ic_notification_icon"

@@ -83,6 +83,16 @@ public final class HyperionCodecScreenEncoder extends HyperionScreenEncoderBase 
     private long mWhiteFrameCount;
     private boolean mWhiteFallbackTriggered;
 
+    private static final long BLACK_FRAME_THRESHOLD = 60;
+    private static final int BLACK_LUMA_THRESHOLD = 12;
+    private long mBlackFrameCount;
+    private boolean mBlackFallbackTriggered;
+    private Runnable mBlackFrameCallback;
+
+    public void setBlackFrameCallback(Runnable callback) {
+        mBlackFrameCallback = callback;
+    }
+
     // Letterbox auto-crop (credit: robin - gitea.datadrake.cloud/robin/hyperion-android-reborn-edited)
     private static final int CONTENT_BOUNDS_LOCK_STABLE = 2;
     private static final int CONTENT_BOUNDS_HYSTERESIS_PX = 12;
@@ -280,6 +290,7 @@ public final class HyperionCodecScreenEncoder extends HyperionScreenEncoderBase 
             } catch (Exception e) {
                 if (DEBUG) Log.w(TAG, "Codec step error: " + e.getMessage(), e);
             }
+            sendKeepAliveIfIdle();
             if (mRunning && mCaptureHandler != null) {
                 if (mAdaptiveFps.isMaxedOut()) {
                     mHealthyFrames = 0;
@@ -396,12 +407,23 @@ public final class HyperionCodecScreenEncoder extends HyperionScreenEncoderBase 
                 } else {
                     mWhiteFrameCount = 0;
                 }
+                if (!mBlackFallbackTriggered && isFrameBlackYuv(image)) {
+                    mBlackFrameCount++;
+                    if (mBlackFrameCount >= BLACK_FRAME_THRESHOLD) {
+                        mBlackFallbackTriggered = true;
+                        if (mBlackFrameCallback != null) {
+                            mBlackFrameCallback.run();
+                        }
+                    }
+                } else {
+                    mBlackFrameCount = 0;
+                }
                 if (mAvgColor) {
                     computeAverageColor(image);
                 } else {
                     convertYuvToRgb(image, mRgbBuffer, mOutWidth, mOutHeight);
                     mListener.sendFrame(mRgbBuffer, mOutWidth, mOutHeight);
-                    markFrameSent();
+                    markFrameSent(mRgbBuffer, mOutWidth, mOutHeight);
                 }
             }
         } catch (Exception e) {
@@ -439,6 +461,32 @@ public final class HyperionCodecScreenEncoder extends HyperionScreenEncoderBase 
         }
         if (total == 0) return false;
         return (bright / (double) total) >= WHITE_FILL_RATIO;
+    }
+
+    private boolean isFrameBlackYuv(Image image) {
+        Image.Plane yPlane = image.getPlanes()[0];
+        ByteBuffer yBuf = yPlane.getBuffer();
+        Rect crop = image.getCropRect();
+        int cropLeft = Math.max(0, crop.left);
+        int cropTop = Math.max(0, crop.top);
+        int cropW = Math.min(image.getWidth() - cropLeft, crop.width());
+        int cropH = Math.min(image.getHeight() - cropTop, crop.height());
+        if (cropW <= 0 || cropH <= 0) return false;
+        final int base = yBuf.position();
+        final int rowStride = yPlane.getRowStride();
+        final int pixelStride = yPlane.getPixelStride();
+        final int step = Math.max(4, Math.max(cropW, cropH) / 24);
+        long sum = 0;
+        int samples = 0;
+        for (int y = cropTop; y < cropTop + cropH; y += step) {
+            final int row = base + y * rowStride;
+            for (int x = cropLeft; x < cropLeft + cropW; x += step) {
+                sum += yBuf.get(row + x * pixelStride) & 0xFF;
+                samples++;
+            }
+        }
+        if (samples == 0) return false;
+        return (sum / samples) < BLACK_LUMA_THRESHOLD;
     }
 
     private void computeAverageColor(Image image) {
@@ -502,7 +550,7 @@ public final class HyperionCodecScreenEncoder extends HyperionScreenEncoderBase 
             mAvgColorResult[1] = (byte) (g / count);
             mAvgColorResult[2] = (byte) (b / count);
             mListener.sendFrame(mAvgColorResult, 1, 1);
-            markFrameSent();
+            markFrameSent(mAvgColorResult, 1, 1);
         }
     }
 

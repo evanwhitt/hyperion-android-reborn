@@ -14,7 +14,8 @@ class HyperionThread(
     private val port: Int,
     private val priority: Int,
     reconnect: Boolean,
-    delaySeconds: Int
+    delaySeconds: Int,
+    protocol: String = "auto"
 ) : Thread(TAG) {
 
     private val baseReconnectDelayMs = (delaySeconds.toLong() * 1000)
@@ -23,6 +24,8 @@ class HyperionThread(
     private val connected = AtomicBoolean(false)
     private val clientRef = AtomicReference<HyperionClient>()
     private val networkExecutor: ExecutorService = Executors.newSingleThreadExecutor()
+    private var useFlatBuffers = protocol != "json"
+    private val allowJsonFallback = protocol == "auto"
     
     private val latestFrame = AtomicReference<FrameData>()
     private var lastFrameNumber = 0L
@@ -142,12 +145,24 @@ class HyperionThread(
                 }
             } catch (e: IOException) {
                 callback.onConnectionError(e.hashCode(), e.message ?: "Unknown error")
+                maybeFallbackToJson()
             }
         }
     }
 
     private fun createClient(): HyperionClient {
-        return HyperionFlatBuffers(host, port, priority)
+        return if (useFlatBuffers) {
+            HyperionFlatBuffers(host, port, priority)
+        } else {
+            HyperionJsonClient(host, port, priority)
+        }
+    }
+
+    private fun maybeFallbackToJson() {
+        if (allowJsonFallback && useFlatBuffers) {
+            useFlatBuffers = false
+            callback.onConnectionError(-1, "FlatBuffers failed, falling back to JSON protocol")
+        }
     }
 
     private fun nextReconnectDelayMs(): Long {
@@ -174,6 +189,7 @@ class HyperionThread(
                 }
             } catch (e: IOException) {
                 callback.onConnectionError(e.hashCode(), e.message ?: "Unknown error")
+                maybeFallbackToJson()
             }
             if (!reconnectEnabled.get() || isInterrupted || paused.get()) return
             sleepSafe(nextReconnectDelayMs())
@@ -182,6 +198,7 @@ class HyperionThread(
 
     private fun handleError(e: IOException) {
         callback.onConnectionError(e.hashCode(), e.message ?: "Unknown error")
+        maybeFallbackToJson()
 
         if (!reconnectEnabled.get() || paused.get()) return
 

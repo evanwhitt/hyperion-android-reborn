@@ -92,6 +92,7 @@ public final class HyperionScreenEncoder extends HyperionScreenEncoderBase {
             
             final long start = System.nanoTime();
             final long captureTimeNs = captureFrame();
+            sendKeepAliveIfIdle();
             final long elapsedMs = (System.nanoTime() - start) / 1_000_000L;
             long effectiveDelayMs = mAdaptiveFps.update(captureTimeNs) - elapsedMs;
             
@@ -314,7 +315,7 @@ public final class HyperionScreenEncoder extends HyperionScreenEncoderBase {
         }
         
         mListener.sendFrame(rgb, mCaptureWidth, mCaptureHeight);
-        markFrameSent();
+        markFrameSent(rgb, mCaptureWidth, mCaptureHeight);
         mRgbBufferIndex = (mRgbBufferIndex + 1) % RGB_BUFFER_RING_SIZE;
     }
 
@@ -458,7 +459,7 @@ public final class HyperionScreenEncoder extends HyperionScreenEncoderBase {
         }
         
         mListener.sendFrame(rgb, effWidth, effHeight);
-        markFrameSent();
+        markFrameSent(rgb, effWidth, effHeight);
         
         mRgbBufferIndex = (mRgbBufferIndex + 1) % RGB_BUFFER_RING_SIZE;
     }
@@ -562,7 +563,7 @@ public final class HyperionScreenEncoder extends HyperionScreenEncoderBase {
             mAvgColorResult[1] = (byte) (g / count);
             mAvgColorResult[2] = (byte) (b / count);
             mListener.sendFrame(mAvgColorResult, 1, 1);
-            markFrameSent();
+            markFrameSent(mAvgColorResult, 1, 1);
         }
     }
 

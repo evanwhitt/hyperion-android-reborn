@@ -2,6 +2,7 @@ package com.hyperion.grabber.tv.fragments.settings
 
 import android.app.Activity
 import android.content.Context
+import android.content.Intent
 import android.graphics.Color
 import android.os.Bundle
 import androidx.leanback.widget.GuidanceStylist
@@ -205,6 +206,13 @@ internal class BasicSettingsStepFragment : SettingsStepBaseFragment() {
         actions.add(captureResolution)
         actions.add(averageColor)
 
+        val diagnostics = GuidedAction.Builder(context)
+                .id(ACTION_DIAGNOSTICS)
+                .title(getString(CommonR.string.pref_title_diagnostics))
+                .description(CommonR.string.pref_summary_diagnostics)
+                .build()
+        actions.add(diagnostics)
+
     }
 
     override fun onCreateButtonActions(actions: MutableList<GuidedAction>, savedInstanceState: Bundle?) {
@@ -256,6 +264,10 @@ internal class BasicSettingsStepFragment : SettingsStepBaseFragment() {
             } catch (ignored: AssertionError) {
             }
 
+            return
+
+        } else if (action.id == ACTION_DIAGNOSTICS) {
+            startActivity(Intent(activity, com.hyperion.grabber.common.DiagnosticsActivity::class.java))
             return
 
         } else if (action.id == ACTION_TEST){
@@ -318,6 +330,7 @@ internal class BasicSettingsStepFragment : SettingsStepBaseFragment() {
         private const val ACTION_RECONNECT = 210L
         private const val ACTION_RECONNECT_DELAY = 220L
         private const val ACTION_MESSAGE_PRIORITY = 300L
+        private const val ACTION_DIAGNOSTICS = 350L
         private const val ACTION_CAPTURE_RATE = 400L
         private const val ACTION_CAPTURE_RATE_SET_ID = 1500
         private const val ACTION_AVERAGE_COLOR = 600L

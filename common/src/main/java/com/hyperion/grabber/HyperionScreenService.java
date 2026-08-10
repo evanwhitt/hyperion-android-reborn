@@ -29,6 +29,7 @@ import android.widget.Toast;
 import com.hyperion.grabber.common.network.HyperionThread;
 import com.hyperion.grabber.common.util.HyperionGrabberOptions;
 import com.hyperion.grabber.common.util.Preferences;
+import com.hyperion.grabber.common.util.Diagnostics;
 
 import java.util.Objects;
 
@@ -49,6 +50,17 @@ public class HyperionScreenService extends Service {
     public static final String ACTION_EXIT = BASE + "ACTION_EXIT";
     public static final String GET_STATUS = BASE + "ACTION_STATUS";
     public static final String EXTRA_RESULT_CODE = BASE + "EXTRA_RESULT_CODE";
+    public static final String DIAG_ACTION = BASE + "ACTION_DIAGNOSTICS";
+    public static final String DIAG_METHOD = "method";
+    public static final String DIAG_CAPTURE_W = "capture_w";
+    public static final String DIAG_CAPTURE_H = "capture_h";
+    public static final String DIAG_GRID_W = "grid_w";
+    public static final String DIAG_GRID_H = "grid_h";
+    public static final String DIAG_FPS = "fps";
+    public static final String DIAG_CONNECTED = "connected";
+    public static final String DIAG_FRAME = "frame";
+    public static final String DIAG_FRAME_W = "frame_w";
+    public static final String DIAG_FRAME_H = "frame_h";
     private static final int NOTIFICATION_ID = 1;
     private static final int NOTIFICATION_EXIT_INTENT_ID = 2;
     private static final int NOTIFICATION_RESTART_INTENT_ID = 3;
@@ -72,6 +84,7 @@ public class HyperionScreenService extends Service {
     private long mLastFpsPollCount;
     private long mLastFpsPollTimeNs;
     private boolean mRestartPending;
+    private boolean mAudioFallback;
     private static final long STATUS_UPDATE_MS = 2000;
     private static final long STALL_TIMEOUT_MS = 30_000;
     private static final long WATCHDOG_INTERVAL_MS = 1000;
@@ -102,6 +115,7 @@ public class HyperionScreenService extends Service {
         @Override
         public void onConnected() {
             if (DEBUG) Log.d(TAG, "Connected to Hyperion server");
+            Diagnostics.log(TAG, "Connected to server");
             mHasConnected = true;
             notifyActivity();
         }
@@ -109,6 +123,7 @@ public class HyperionScreenService extends Service {
         @Override
         public void onConnectionError(int errorID, String error) {
             Log.e(TAG, "Connection error: " + (error != null ? error : "unknown"));
+            Diagnostics.log(TAG, "Connection error: " + (error != null ? error : "unknown"));
             if (!mHasConnected && !mReconnectEnabled) {
                 mStartError = getResources().getString(R.string.error_server_unreachable);
                 haltStartup();
@@ -137,8 +152,12 @@ public class HyperionScreenService extends Service {
                     notifyActivity();
                 break;
                 case Intent.ACTION_SCREEN_OFF:
-                    if (mHyperionEncoder != null) mHyperionEncoder.pauseRecording();
-                    if (mHyperionThread != null) mHyperionThread.pauseConnection();
+                    if (new Preferences(getBaseContext()).getBoolean(R.string.pref_key_keep_grabbing)) {
+                        if (DEBUG) Log.v(TAG, "Screen off but keep-grabbing is enabled");
+                    } else {
+                        if (mHyperionEncoder != null) mHyperionEncoder.pauseRecording();
+                        if (mHyperionThread != null) mHyperionThread.pauseConnection();
+                    }
                 break;
                 case Intent.ACTION_CONFIGURATION_CHANGED:
                     if (DEBUG) Log.v(TAG, "ACTION_CONFIGURATION_CHANGED intent received");
@@ -198,7 +217,8 @@ public class HyperionScreenService extends Service {
             Log.e(TAG, "Invalid priority value: " + priority);
         }
         mMediaProjectionManager = (MediaProjectionManager) getSystemService(Context.MEDIA_PROJECTION_SERVICE);
-        mHyperionThread = new HyperionThread(mReceiver, host, port, priorityValue, mReconnectEnabled, delay);
+        String protocol = prefs.getString(R.string.pref_key_protocol, "auto");
+        mHyperionThread = new HyperionThread(mReceiver, host, port, priorityValue, mReconnectEnabled, delay, protocol);
         mHyperionThread.start();
         mStartError = null;
         return true;
@@ -428,7 +448,7 @@ public class HyperionScreenService extends Service {
         
         if (projection == null) {
             Log.e(TAG, "Failed to create MediaProjection - permission may have been denied");
-            mStartError = "Failed to obtain media projection";
+            mStartError = getResources().getString(R.string.error_media_projection_denied);
             haltStartup();
             return;
         }
@@ -462,8 +482,14 @@ public class HyperionScreenService extends Service {
         mHyperionEncoder = createEncoder(thread, projection, metrics.widthPixels, metrics.heightPixels,
                 metrics.densityDpi, options, captureMethod);
 
+        Diagnostics.log(TAG, "Capture started: device=" + Build.MANUFACTURER + " " + Build.MODEL
+                + " android=" + Build.VERSION.RELEASE + " method=" + captureMethod
+                + " screen=" + metrics.widthPixels + "x" + metrics.heightPixels
+                + " grid=" + mHorizontalLEDCount + "x" + mVerticalLEDCount
+                + " fps=" + mFrameRate);
         mHyperionEncoder.sendStatus();
         mRestartPending = false;
+        mAudioFallback = false;
         mHandler.removeCallbacks(mStatusUpdater);
         mHandler.removeCallbacks(mWatchdog);
         mHandler.post(mStatusUpdater);
@@ -481,6 +507,11 @@ public class HyperionScreenService extends Service {
                         width, height, density,
                         options,
                         this);
+                // Persistent black frames on the codec path usually mean the
+                // content is protected (DRM), so offer audio-reactive mode.
+                ((HyperionCodecScreenEncoder) encoder).setBlackFrameCallback(() -> {
+                    mHandler.post(HyperionScreenService.this::offerAudioMode);
+                });
                 Log.i(TAG, "Using codec capture method");
             } catch (Exception e) {
                 Log.e(TAG, "Codec capture failed to initialize, falling back to ImageReader: " + e.getMessage());
@@ -511,7 +542,19 @@ public class HyperionScreenService extends Service {
             return;
         }
         Log.i(TAG, "Black frames detected, switching to Codec capture method");
+        Diagnostics.log(TAG, "Black frames on ImageReader path, switching to Codec");
         requestCaptureRestart("codec");
+    }
+
+    private void offerAudioMode() {
+        if (mRestartPending) {
+            return;
+        }
+        Log.i(TAG, "Persistent black frames on codec path, offering audio mode");
+        Diagnostics.log(TAG, "Black frames on codec path, offering audio mode");
+        mRestartPending = true;
+        mAudioFallback = true;
+        updateStatusNotification();
     }
 
     private void restartEncoder() {
@@ -519,6 +562,7 @@ public class HyperionScreenService extends Service {
             return;
         }
         Log.w(TAG, "Capture stalled, restarting");
+        Diagnostics.log(TAG, "Capture stalled, restarting");
         Preferences prefs = new Preferences(getBaseContext());
         requestCaptureRestart(prefs.getString(R.string.pref_key_capture_method, "imagereader"));
     }
@@ -533,6 +577,7 @@ public class HyperionScreenService extends Service {
         Preferences prefs = new Preferences(getBaseContext());
         prefs.putString(R.string.pref_key_capture_method, captureMethod);
         Log.i(TAG, "Requesting capture restart with method " + captureMethod);
+        Diagnostics.log(TAG, "Restart requested with method " + captureMethod);
         mStartError = null;
         mRestartPending = true;
 
@@ -558,6 +603,14 @@ public class HyperionScreenService extends Service {
         return intent;
     }
 
+    private Intent buildAudioButton() {
+        Intent intent = new Intent(this, ToggleActivity.class);
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+        intent.putExtra(ToggleActivity.EXTRA_RESTART, true);
+        intent.putExtra(ToggleActivity.EXTRA_AUDIO, true);
+        return intent;
+    }
+
     private void updateStatusNotification() {
         if (mHyperionNotification == null) {
             return;
@@ -566,10 +619,17 @@ public class HyperionScreenService extends Service {
         mHyperionNotification.setAction(NOTIFICATION_EXIT_INTENT_ID,
                 getString(R.string.notification_exit_button), buildExitButton());
         if (mRestartPending) {
-            mHyperionNotification.setActivityAction(NOTIFICATION_RESTART_INTENT_ID,
-                    getString(R.string.notification_restart_button), buildRestartButton());
-            mNotificationManager.notify(NOTIFICATION_ID,
-                    mHyperionNotification.buildNotification(getString(R.string.notification_status_restart)));
+            if (mAudioFallback) {
+                mHyperionNotification.setActivityAction(NOTIFICATION_RESTART_INTENT_ID,
+                        getString(R.string.notification_audio_button), buildAudioButton());
+                mNotificationManager.notify(NOTIFICATION_ID,
+                        mHyperionNotification.buildNotification(getString(R.string.notification_status_audio)));
+            } else {
+                mHyperionNotification.setActivityAction(NOTIFICATION_RESTART_INTENT_ID,
+                        getString(R.string.notification_restart_button), buildRestartButton());
+                mNotificationManager.notify(NOTIFICATION_ID,
+                        mHyperionNotification.buildNotification(getString(R.string.notification_status_restart)));
+            }
             return;
         }
         if (mHyperionEncoder == null) {
@@ -590,6 +650,8 @@ public class HyperionScreenService extends Service {
         }
         mLastFpsPollCount = count;
         mLastFpsPollTimeNs = nowNs;
+
+        broadcastDiagnostics(w, h, fps);
 
         String text;
         if (isCommunicating()) {
@@ -614,6 +676,33 @@ public class HyperionScreenService extends Service {
         if ("low".equals(value)) return 0;
         if ("high".equals(value)) return 2;
         return 1; // medium
+    }
+
+    private void broadcastDiagnostics(int captureW, int captureH, float fps) {
+        try {
+            Intent intent = new Intent(DIAG_ACTION);
+            String method = "none";
+            if (mHyperionEncoder instanceof HyperionCodecScreenEncoder) {
+                method = "codec";
+            } else if (mHyperionEncoder instanceof HyperionScreenEncoder) {
+                method = "imagereader";
+            }
+            intent.putExtra(DIAG_METHOD, method);
+            intent.putExtra(DIAG_CAPTURE_W, captureW);
+            intent.putExtra(DIAG_CAPTURE_H, captureH);
+            intent.putExtra(DIAG_GRID_W, mHorizontalLEDCount);
+            intent.putExtra(DIAG_GRID_H, mVerticalLEDCount);
+            intent.putExtra(DIAG_FPS, fps);
+            intent.putExtra(DIAG_CONNECTED, mHasConnected);
+            if (mHyperionEncoder != null) {
+                intent.putExtra(DIAG_FRAME, mHyperionEncoder.copyLastFrame());
+                intent.putExtra(DIAG_FRAME_W, mHyperionEncoder.getLastFrameWidth());
+                intent.putExtra(DIAG_FRAME_H, mHyperionEncoder.getLastFrameHeight());
+            }
+            LocalBroadcastManager.getInstance(getApplicationContext()).sendBroadcast(intent);
+        } catch (Exception e) {
+            if (DEBUG) Log.w(TAG, "Diagnostics broadcast failed: " + e.getMessage());
+        }
     }
 
     private void warnHdrWhiteFrames() {

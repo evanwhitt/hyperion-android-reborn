@@ -11,6 +11,11 @@
     <item>Standard (ImageReader)</item>
     <item>Codec (compatibility)</item>
   </string-array>
+  <string-array name="pref_list_protocol">
+    <item>Automatic (recommended)</item>
+    <item>FlatBuffers</item>
+    <item>JSON (older servers)</item>
+  </string-array>
   <string-array name="pref_list_capture_resolution">
     <item>Small</item>
     <item>Medium</item>
@@ -72,7 +77,7 @@
   <string name="error_server_unreachable">Could not connect to the hyperion server. Check your settings and make sure hyperion is running</string>
   <string name="error_connection_lost">The connection to your hyperion server has been lost, now stopping the grabber</string>
   <string name="error_foreground_blocked">This device blocks screen capture services. Please check your device settings and allow Hyperion Grabber to run in the foreground, or grant it auto-start permission</string>
-  <string name="error_media_projection_denied">Screen recording permission was denied. Please grant permission when prompted</string>
+  <string name="error_media_projection_denied">Screen capture permission was denied. Reopen the app and choose "Start now" when the prompt appears. On some TVs (TCL, etc.) also check Settings > Apps > Hyperion Grabber > Permissions and allow screen capture</string>
   <string name="hdr_white_frames_warning">Solid white frames detected (HDR video?). Switch the content to SDR or try the other Capture Method</string>
   <string name="toast_must_give_permission">Permission must be granted to record screen data.</string>
   <string name="message_service_started">Press Back to close the app. Your screen content will continue to be sent to Hyperion</string>
@@ -84,7 +89,17 @@
   <string name="notification_status_paused">Paused · %1$dx%2$d</string>
   <string name="notification_status_restart">Capture stopped — restart it from the app</string>
   <string name="notification_restart_button">Restart</string>
+  <string name="notification_status_audio">Screen is black (protected content?) — switch to audio-reactive mode</string>
+  <string name="notification_audio_button">Audio mode</string>
+  <string name="diagnostics_title">Diagnostics</string>
+  <string name="diagnostics_copy">Copy logs</string>
+  <string name="pref_title_diagnostics">Diagnostics</string>
+  <string name="pref_summary_diagnostics">Live capture stats, a screen preview and recent logs for troubleshooting</string>
    <string name="pref_title_use_avg_color">Send Average Screen Color</string>
+   <string name="pref_title_keep_grabbing">Keep grabbing when screen is off</string>
+   <string name="pref_summary_keep_grabbing">Keeps sending the last picture instead of pausing when the TV output blanks (can use more power)</string>
+   <string name="pref_title_protocol">Server protocol</string>
+   <string name="pref_summary_protocol">Automatic tries FlatBuffers first and falls back to JSON on errors. Pick JSON for older Hyperion servers</string>
    <string name="pref_summary_use_avg_color">Sends the average color of your device\'s screen rather than an image of it</string>
    <string name="pref_group_sync">Synchronization</string>
    <string name="pref_title_frame_delay">Frame Delay</string>

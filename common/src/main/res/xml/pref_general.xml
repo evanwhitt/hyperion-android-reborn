@@ -116,11 +116,35 @@
             android:positiveButtonText="@null"
             android:title="@string/pref_title_capture_resolution" />
 
+        <ListPreference
+            android:defaultValue="@string/pref_default_protocol"
+            android:entries="@array/pref_list_protocol"
+            android:entryValues="@array/pref_list_protocol_values"
+            android:key="@string/pref_key_protocol"
+            android:summary="@string/pref_summary_protocol"
+            android:negativeButtonText="@null"
+            android:positiveButtonText="@null"
+            android:title="@string/pref_title_protocol" />
+
         <CheckBoxPreference
             android:defaultValue="@bool/pref_default_use_avg_color"
             android:key="@string/pref_key_use_avg_color"
             android:title="@string/pref_title_use_avg_color"
             android:summary="@string/pref_summary_use_avg_color" />
+
+        <CheckBoxPreference
+            android:defaultValue="@bool/pref_default_keep_grabbing"
+            android:key="@string/pref_key_keep_grabbing"
+            android:title="@string/pref_title_keep_grabbing"
+            android:summary="@string/pref_summary_keep_grabbing" />
+
+        <Preference
+            android:title="@string/pref_title_diagnostics"
+            android:summary="@string/pref_summary_diagnostics">
+            <intent android:action="android.intent.action.VIEW"
+                android:targetPackage="com.hyperion.grabber"
+                android:targetClass="com.hyperion.grabber.common.DiagnosticsActivity" />
+        </Preference>
 
     </PreferenceCategory>
 

@@ -16,6 +16,7 @@ abstract class HyperionScreenEncoderBase {
     static final boolean DEBUG = false;
     
     private static final int CLEAR_DELAY_MS = 100;
+    static final long KEEPALIVE_MS = 1000;
 
     // Configuration (immutable after construction)
     protected final int mDensity;
@@ -38,9 +39,27 @@ abstract class HyperionScreenEncoderBase {
     protected Runnable mWhiteFrameCallback;
     private volatile long mSentFrameCount;
     private volatile long mLastFrameSentMs;
+    protected byte[] mLastFrame;
+    protected int mLastFrameW;
+    protected int mLastFrameH;
 
     public void setWhiteFrameCallback(Runnable callback) {
         mWhiteFrameCallback = callback;
+    }
+
+    protected void markFrameSent(byte[] frame, int w, int h) {
+        mLastFrame = frame;
+        mLastFrameW = w;
+        mLastFrameH = h;
+        markFrameSent();
+    }
+
+    protected void sendKeepAliveIfIdle() {
+        long now = System.currentTimeMillis();
+        if (mLastFrame != null && mLastFrameSentMs > 0 && now - mLastFrameSentMs >= KEEPALIVE_MS) {
+            mListener.sendFrame(mLastFrame, mLastFrameW, mLastFrameH);
+            markFrameSent();
+        }
     }
 
     protected void markFrameSent() {
@@ -54,6 +73,19 @@ abstract class HyperionScreenEncoderBase {
 
     public long getLastFrameSentMs() {
         return mLastFrameSentMs;
+    }
+
+    public byte[] copyLastFrame() {
+        byte[] frame = mLastFrame;
+        return frame != null ? frame.clone() : null;
+    }
+
+    public int getLastFrameWidth() {
+        return mLastFrameW;
+    }
+
+    public int getLastFrameHeight() {
+        return mLastFrameH;
     }
 
     public int getCaptureWidth() {

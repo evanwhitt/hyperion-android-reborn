@@ -11,9 +11,12 @@ import androidx.annotation.Nullable;
 import androidx.annotation.RequiresApi;
 import androidx.appcompat.app.AppCompatActivity;
 
+import com.hyperion.grabber.common.util.Preferences;
+
 public class ToggleActivity extends AppCompatActivity {
     public static final int REQUEST_MEDIA_PROJECTION = 1;
     public static final String EXTRA_RESTART = "restart_capture";
+    public static final String EXTRA_AUDIO = "audio_mode";
 
     @RequiresApi(api = Build.VERSION_CODES.LOLLIPOP)
     @Override
@@ -21,6 +24,9 @@ public class ToggleActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
 
         boolean restart = getIntent().getBooleanExtra(EXTRA_RESTART, false);
+        if (getIntent().getBooleanExtra(EXTRA_AUDIO, false)) {
+            new Preferences(this).putBoolean(R.string.pref_key_audio_only_mode, true);
+        }
         boolean serviceRunning = checkForInstance();
 
         if (serviceRunning && !restart) {
