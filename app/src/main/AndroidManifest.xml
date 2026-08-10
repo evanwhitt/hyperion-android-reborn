@@ -20,7 +20,6 @@
         
         <activity android:name=".MainActivity"
             android:launchMode="singleTop"
-            android:theme="@style/MainTheme"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -32,7 +31,7 @@
             android:name="com.hyperion.grabber.tv.activities.MainActivity"
             android:launchMode="singleTop"
             android:exported="true"
-            android:theme="@style/TvMainTheme">
+            android:theme="@style/Theme.Leanback">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
@@ -43,7 +42,6 @@
             android:name=".SettingsActivity"
             android:label="@string/settings"
             android:parentActivityName=".MainActivity"
-            android:theme="@style/SettingsTheme"
             android:exported="false">
             <meta-data
                 android:name="androidx.PARENT_ACTIVITY"
@@ -87,7 +85,6 @@
 
         <activity
             android:name="com.hyperion.grabber.common.DiagnosticsActivity"
-            android:theme="@style/MainTheme"
             android:exported="false" />
 
         <service

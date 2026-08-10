@@ -16,7 +16,6 @@ import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.core.content.ContextCompat;
 import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 
 import com.hyperion.grabber.common.util.Diagnostics;
@@ -25,9 +24,9 @@ import java.util.Locale;
 
 public class DiagnosticsActivity extends AppCompatActivity {
 
-    private TextView mStats;
-    private ImageView mPreview;
-    private TextView mLogs;
+    private final TextView mStats = new TextView(this);
+    private final ImageView mPreview = new ImageView(this);
+    private final TextView mLogs = new TextView(this);
 
     private final BroadcastReceiver mDiagReceiver = new BroadcastReceiver() {
         @Override
@@ -59,19 +58,13 @@ public class DiagnosticsActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        mStats = new TextView(this);
-        mPreview = new ImageView(this);
-        mLogs = new TextView(this);
-
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
         root.setPadding(24, 24, 24, 24);
         root.setGravity(Gravity.CENTER_HORIZONTAL);
-        root.setBackgroundColor(ContextCompat.getColor(this, R.color.ui_background));
 
         mStats.setTextSize(16);
         mStats.setGravity(Gravity.CENTER);
-        mStats.setTextColor(ContextCompat.getColor(this, R.color.ui_text_primary));
 
         mPreview.setBackgroundColor(0xFF222222);
         mPreview.setAdjustViewBounds(true);
@@ -79,7 +72,6 @@ public class DiagnosticsActivity extends AppCompatActivity {
 
         mLogs.setTextSize(11);
         mLogs.setTypeface(android.graphics.Typeface.MONOSPACE);
-        mLogs.setTextColor(ContextCompat.getColor(this, R.color.ui_text_secondary));
 
         ScrollView scroll = new ScrollView(this);
         scroll.addView(mLogs, new ScrollView.LayoutParams(
@@ -87,8 +79,6 @@ public class DiagnosticsActivity extends AppCompatActivity {
 
         Button copy = new Button(this);
         copy.setText(getString(R.string.diagnostics_copy));
-        copy.setTextColor(ContextCompat.getColor(this, R.color.ui_background));
-        copy.setBackgroundColor(ContextCompat.getColor(this, R.color.ui_accent));
         copy.setOnClickListener(v -> {
             ClipboardManager cm = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
             if (cm != null) {

@@ -26,7 +26,6 @@ import android.view.MenuInflater;
 import android.view.MenuItem;
 import android.view.View;
 import android.widget.ImageView;
-import android.widget.TextView;
 import android.widget.Toast;
 
 import com.hyperion.grabber.common.BootActivity;
@@ -196,8 +195,11 @@ public class MainActivity extends AppCompatActivity implements ImageView.OnClick
 
     @Override
     public void onFocusChange(View view, boolean focused) {
-        ((ImageView) view).setColorFilter(ContextCompat.getColor(this,
-                focused ? R.color.ui_accent : R.color.ui_text_primary));
+        if (focused) {
+            ((ImageView) view).setColorFilter(Color.argb(255, 0, 0, 150));
+        } else {
+            ((ImageView) view).setColorFilter(Color.argb(255, 0, 0, 0));
+        }
     }
     
     @Override
@@ -257,23 +259,6 @@ public class MainActivity extends AppCompatActivity implements ImageView.OnClick
         View rainbow = findViewById(R.id.sweepGradientView);
         View message = findViewById(R.id.grabberStartedText);
         View buttonImage = findViewById(R.id.power_toggle);
-        TextView statusTitle = findViewById(R.id.statusTitle);
-        TextView statusSubtitle = findViewById(R.id.statusSubtitle);
-        if (statusTitle != null) {
-            statusTitle.setText(getString(running
-                    ? com.hyperion.grabber.common.R.string.main_status_running
-                    : com.hyperion.grabber.common.R.string.main_status_ready));
-        }
-        if (statusSubtitle != null) {
-            statusSubtitle.setText(getString(running
-                    ? com.hyperion.grabber.common.R.string.main_status_running_detail
-                    : com.hyperion.grabber.common.R.string.main_status_ready_detail));
-        }
-        if (buttonImage != null) {
-            buttonImage.setContentDescription(getString(running
-                    ? com.hyperion.grabber.common.R.string.main_stop_hint
-                    : com.hyperion.grabber.common.R.string.main_start_hint));
-        }
         if (running) {
             if (animated){
                 fadeView(rainbow, true);
