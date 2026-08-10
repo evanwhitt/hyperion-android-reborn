@@ -22,6 +22,16 @@
     <item>High</item>
   </string-array>
   <string name="app_name">Hyperion Grabber</string>
+  <string name="main_eyebrow">AMBIENT LIGHT</string>
+  <string name="main_title">Make the screen glow</string>
+  <string name="main_subtitle">Send the colors on your screen to Hyperion.</string>
+  <string name="main_status_ready">Ready to capture</string>
+  <string name="main_status_ready_detail">Press the power button to start your ambient light.</string>
+  <string name="main_status_running">Sending colors to Hyperion</string>
+  <string name="main_status_running_detail">Capture continues while you use other apps.</string>
+  <string name="main_hint">Configure your Hyperion host and LED layout in Settings.</string>
+  <string name="main_start_hint">Start capture</string>
+  <string name="main_stop_hint">Stop capture</string>
   <string name="pref_title">Settings</string>
   <string name="enabled">Enabled</string>
   <string name="disabled">Disabled</string>

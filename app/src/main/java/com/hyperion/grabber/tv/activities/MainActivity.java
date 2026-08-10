@@ -25,6 +25,7 @@ import android.util.Log;
 import android.view.View;
 import android.widget.ImageButton;
 import android.widget.ImageView;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import com.hyperion.grabber.common.BootActivity;
@@ -195,10 +196,8 @@ public class MainActivity extends LeanbackActivity implements ImageView.OnClickL
 
     @Override
     public void onFocusChange(View view, boolean focused) {
-        int clr = Color.argb(255, 0, 0, 150);
-        if (!focused) {
-            clr = Color.argb(255, 0, 0, 0);
-        }
+        int clr = ContextCompat.getColor(this,
+                focused ? R.color.ui_accent : R.color.ui_text_primary);
         int id = view.getId();
         if (id == R.id.power_toggle) {
             ((ImageView) view).setColorFilter(clr);
@@ -259,6 +258,24 @@ public class MainActivity extends LeanbackActivity implements ImageView.OnClickL
     private void setImageViews(boolean running, boolean animated) {
         View rainbow = findViewById(R.id.sweepGradientView);
         View message = findViewById(R.id.grabberStartedText);
+        TextView statusTitle = findViewById(R.id.statusTitle);
+        TextView statusSubtitle = findViewById(R.id.statusSubtitle);
+        ImageView power = findViewById(R.id.power_toggle);
+        if (statusTitle != null) {
+            statusTitle.setText(getString(running
+                    ? com.hyperion.grabber.common.R.string.main_status_running
+                    : com.hyperion.grabber.common.R.string.main_status_ready));
+        }
+        if (statusSubtitle != null) {
+            statusSubtitle.setText(getString(running
+                    ? com.hyperion.grabber.common.R.string.main_status_running_detail
+                    : com.hyperion.grabber.common.R.string.main_status_ready_detail));
+        }
+        if (power != null) {
+            power.setContentDescription(getString(running
+                    ? com.hyperion.grabber.common.R.string.main_stop_hint
+                    : com.hyperion.grabber.common.R.string.main_start_hint));
+        }
         if (running) {
             if (animated){
                 fadeView(rainbow, true);

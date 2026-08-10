@@ -4,82 +4,172 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:background="@drawable/ui_app_background"
+    android:paddingTop="24dp"
+    android:paddingBottom="24dp"
     tools:context="com.hyperion.grabber.tv.activities.MainActivity">
 
     <com.hyperion.grabber.common.views.SweepGradientView
         android:id="@+id/sweepGradientView"
         android:layout_width="match_parent"
-        android:layout_height="match_parent" />
-
-    <androidx.appcompat.widget.AppCompatTextView
-        android:id="@+id/grabberStartedText"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginBottom="24dp"
-        android:background="@drawable/pill_background"
-        android:drawablePadding="8dp"
-        android:drawableStart="@drawable/ic_info_white_24dp"
-        android:gravity="center"
-        android:paddingBottom="8dp"
-        android:paddingEnd="10dp"
-        android:paddingStart="8dp"
-        android:paddingTop="8dp"
-        android:text="@string/message_service_started"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintHorizontal_bias="0.5"
-        app:layout_constraintStart_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent" />
-
-    <androidx.appcompat.widget.AppCompatImageView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_gravity="center_horizontal"
-        android:layout_marginBottom="8dp"
-        android:layout_marginEnd="8dp"
-        android:layout_marginStart="8dp"
-        android:layout_marginTop="8dp"
-        android:adjustViewBounds="true"
-        app:layout_constraintBottom_toBottomOf="parent"
+        android:layout_height="6dp"
+        android:alpha="0.9"
+        android:visibility="gone"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent"
-        app:srcCompat="@drawable/ic_toggle_image_middle" />
+        app:layout_constraintTop_toTopOf="parent" />
 
-    <androidx.appcompat.widget.AppCompatImageView
-        android:id="@+id/power_toggle"
+    <android.widget.LinearLayout
+        android:id="@+id/mainHeader"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:paddingStart="4dp"
+        android:paddingEnd="4dp"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/sweepGradientView"
+        app:layout_constraintWidth_percent="0.76">
+
+        <androidx.appcompat.widget.AppCompatTextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:fontFamily="sans-serif-medium"
+            android:letterSpacing="0.16"
+            android:text="@string/main_eyebrow"
+            android:textColor="@color/ui_accent"
+            android:textSize="11sp" />
+
+        <androidx.appcompat.widget.AppCompatTextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:fontFamily="sans-serif-medium"
+            android:text="@string/main_title"
+            android:textColor="@color/ui_text_primary"
+            android:textSize="28sp" />
+
+        <androidx.appcompat.widget.AppCompatTextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:text="@string/main_subtitle"
+            android:textColor="@color/ui_text_secondary"
+            android:textSize="15sp" />
+    </android.widget.LinearLayout>
+
+    <android.widget.LinearLayout
+        android:id="@+id/mainControlCard"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="28dp"
+        android:background="@drawable/ui_panel_background"
+        android:gravity="center_horizontal"
+        android:orientation="vertical"
+        android:paddingStart="24dp"
+        android:paddingTop="24dp"
+        android:paddingEnd="24dp"
+        android:paddingBottom="22dp"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/mainHeader"
+        app:layout_constraintWidth_percent="0.76">
+
+        <androidx.appcompat.widget.AppCompatTextView
+            android:id="@+id/statusTitle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:fontFamily="sans-serif-medium"
+            android:text="@string/main_status_ready"
+            android:textColor="@color/ui_text_primary"
+            android:textSize="20sp" />
+
+        <androidx.appcompat.widget.AppCompatTextView
+            android:id="@+id/statusSubtitle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="5dp"
+            android:gravity="center"
+            android:text="@string/main_status_ready_detail"
+            android:textColor="@color/ui_text_secondary"
+            android:textSize="13sp" />
+
+        <androidx.appcompat.widget.AppCompatImageView
+            android:id="@+id/power_toggle"
+            android:layout_width="112dp"
+            android:layout_height="112dp"
+            android:layout_marginTop="24dp"
+            android:background="@drawable/ui_power_button_background"
+            android:clickable="true"
+            android:contentDescription="@string/main_start_hint"
+            android:focusable="true"
+            android:padding="24dp"
+            android:scaleType="centerInside"
+            android:tint="@color/ui_text_primary"
+            app:srcCompat="@drawable/ic_power_black_72dp" />
+
+        <androidx.appcompat.widget.AppCompatTextView
+            android:id="@+id/grabberStartedText"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="18dp"
+            android:background="@drawable/ui_status_background"
+            android:drawableStart="@drawable/ic_info_white_24dp"
+            android:drawableTint="@color/ui_accent"
+            android:drawablePadding="7dp"
+            android:gravity="center"
+            android:paddingStart="12dp"
+            android:paddingTop="8dp"
+            android:paddingEnd="12dp"
+            android:paddingBottom="8dp"
+            android:text="@string/main_status_running_detail"
+            android:textColor="@color/ui_text_primary"
+            android:textSize="12sp"
+            android:visibility="gone" />
+    </android.widget.LinearLayout>
+
+    <androidx.appcompat.widget.AppCompatTextView
+        android:id="@+id/mainHint"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:gravity="center"
+        android:text="@string/main_hint"
+        android:textColor="@color/ui_text_secondary"
+        android:textSize="12sp"
+        app:layout_constraintEnd_toEndOf="@id/mainControlCard"
+        app:layout_constraintStart_toStartOf="@id/mainControlCard"
+        app:layout_constraintTop_toBottomOf="@id/mainControlCard" />
+
+    <android.widget.LinearLayout
+        android:id="@+id/mainFooter"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_gravity="center_horizontal"
-        android:layout_marginEnd="12dp"
-        android:adjustViewBounds="true"
-        android:background="@drawable/image_button_background"
-
-        android:clickable="true"
-        android:focusable="true"
-        app:layout_constraintBottom_toTopOf="@+id/sweepGradientView"
-        app:layout_constraintEnd_toStartOf="@+id/settingsButton"
-        app:layout_constraintHorizontal_bias="0.5"
-        app:layout_constraintStart_toEndOf="@+id/sweepGradientView"
-
-        app:layout_constraintTop_toBottomOf="@+id/sweepGradientView"
-
-        app:srcCompat="@drawable/ic_power_black_72dp" />
+        android:layout_marginTop="24dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/mainHint">
 
     <androidx.appcompat.widget.AppCompatImageButton
         android:id="@+id/settingsButton"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:background="@drawable/image_button_background"
+        android:layout_width="52dp"
+        android:layout_height="52dp"
+        android:background="@drawable/ui_action_button_background"
+        android:contentDescription="@string/settings"
         android:focusable="true"
-
-        app:layout_constraintBottom_toTopOf="@+id/sweepGradientView"
-        app:layout_constraintEnd_toStartOf="@+id/sweepGradientView"
-        app:layout_constraintHorizontal_bias="0.5"
-        app:layout_constraintStart_toEndOf="@+id/power_toggle"
-        app:layout_constraintTop_toBottomOf="@+id/sweepGradientView"
-
+        android:padding="13dp"
+        android:tint="@color/ui_text_secondary"
         app:srcCompat="@drawable/ic_settings_black_72dp" />
 
-</androidx.constraintlayout.widget.ConstraintLayout>
+        <androidx.appcompat.widget.AppCompatTextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="10dp"
+            android:text="@string/settings"
+            android:textColor="@color/ui_text_secondary"
+            android:textSize="13sp" />
+    </android.widget.LinearLayout>
 
+</androidx.constraintlayout.widget.ConstraintLayout>

@@ -1,13 +1,24 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="colorPrimary">#607D8B</color>
-    <color name="colorPrimaryDark">#455A64</color>
-    <color name="colorPrimaryExtraDark">#324249</color>
-    <color name="colorPrimarySuperDark">#303030</color>
-    <color name="colorPrimaryLight">#CFD8DC</color>
-    <color name="colorAccent">#FF5722</color>
-    <color name="primary_text">#212121</color>
-    <color name="secondary_text">#757575</color>
-    <color name="icons">#FFFFFF</color>
-    <color name="divider">#BDBDBD</color>
+    <color name="colorPrimary">#14202B</color>
+    <color name="colorPrimaryDark">#0A1016</color>
+    <color name="colorPrimaryExtraDark">#101923</color>
+    <color name="colorPrimarySuperDark">#0B1219</color>
+    <color name="colorPrimaryLight">#B8C8D0</color>
+    <color name="colorAccent">#64E6BF</color>
+    <color name="primary_text">#EAF3F2</color>
+    <color name="secondary_text">#9EAFB7</color>
+    <color name="icons">#EAF3F2</color>
+    <color name="divider">#2A3947</color>
+
+    <color name="ui_background">#0B1219</color>
+    <color name="ui_background_deep">#111D27</color>
+    <color name="ui_surface">#16232E</color>
+    <color name="ui_surface_raised">#20303D</color>
+    <color name="ui_stroke">#2D404F</color>
+    <color name="ui_accent">#64E6BF</color>
+    <color name="ui_accent_bright">#B6FFE9</color>
+    <color name="ui_accent_dim">#21483F</color>
+    <color name="ui_text_primary">#F1F7F6</color>
+    <color name="ui_text_secondary">#A5B5BC</color>
 </resources>
