@@ -75,6 +75,7 @@ public final class HyperionCodecScreenEncoder extends HyperionScreenEncoderBase 
     private byte[] mHdrLut;
     private boolean mHdrActive;
     private int mHdrRangeOffset;
+    private long mLastSendTimeMs;
 
     private static final long WHITE_FRAME_THRESHOLD = 60; // ~2s at 30fps
     private static final int WHITE_Y_THRESHOLD = 230;
@@ -367,7 +368,11 @@ public final class HyperionCodecScreenEncoder extends HyperionScreenEncoderBase 
                 updateColorInfo(mDecoder.getOutputFormat());
             } else if (index >= 0) {
                 if (mDecoderInfo.size > 0) {
-                    sendDecodedFrame(index);
+                    long now = System.currentTimeMillis();
+                    if (now - mLastSendTimeMs >= mAdaptiveFps.baseIntervalMs()) {
+                        sendDecodedFrame(index);
+                        mLastSendTimeMs = now;
+                    }
                 }
                 mDecoder.releaseOutputBuffer(index, false);
                 if ((mDecoderInfo.flags & MediaCodec.BUFFER_FLAG_END_OF_STREAM) != 0) break;
@@ -508,11 +513,17 @@ public final class HyperionCodecScreenEncoder extends HyperionScreenEncoderBase 
         final int srcW = Math.max(2, srcRight - srcLeft);
         final int srcH = Math.max(2, srcBottom - srcTop);
 
+        final int stepX = (srcW << 16) / Math.max(1, outWidth);
+        final int stepY = (srcH << 16) / Math.max(1, outHeight);
         int rgbIdx = 0;
+        int fy = srcTop << 16;
         for (int y = 0; y < outHeight; y++) {
-            int srcY = srcTop + (y * srcH) / outHeight;
+            final int srcY = fy >> 16;
+            fy += stepY;
+            int fx = srcLeft << 16;
             for (int x = 0; x < outWidth; x++) {
-                int srcX = srcLeft + (x * srcW) / outWidth;
+                final int srcX = fx >> 16;
+                fx += stepX;
 
                 int yOff = yBuf.position() + srcY * yRowStride + srcX * yPixelStride;
                 int chromaX = srcX / 2;
@@ -525,16 +536,16 @@ public final class HyperionCodecScreenEncoder extends HyperionScreenEncoderBase 
                 int V = (vBuf.get(vOff) & 0xFF) - 128;
 
                 if (mHdrActive) {
-                    int rp = Y + (int) (1.4746f * V);
-                    int gp = Y - (int) (0.1645f * U) - (int) (0.5714f * V);
-                    int bp = Y + (int) (1.8814f * U);
+                    int rp = Y + (377 * V >> 8);
+                    int gp = Y - ((42 * U + 146 * V) >> 8);
+                    int bp = Y + (482 * U >> 8);
                     rgb[rgbIdx++] = mHdrLut[clamp(rp)];
                     rgb[rgbIdx++] = mHdrLut[clamp(gp)];
                     rgb[rgbIdx++] = mHdrLut[clamp(bp)];
                 } else {
-                    int r = (int) (1.164f * Y + 1.596f * V);
-                    int g = (int) (1.164f * Y - 0.392f * U - 0.813f * V);
-                    int b = (int) (1.164f * Y + 2.017f * U);
+                    int r = (298 * Y + 409 * V) >> 8;
+                    int g = (298 * Y - 100 * U - 208 * V) >> 8;
+                    int b = (298 * Y + 516 * U) >> 8;
 
                     rgb[rgbIdx++] = (byte) clamp(r);
                     rgb[rgbIdx++] = (byte) clamp(g);

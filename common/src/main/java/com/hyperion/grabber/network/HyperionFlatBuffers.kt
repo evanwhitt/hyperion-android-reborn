@@ -19,6 +19,7 @@ class HyperionFlatBuffers(address: String?, port: Int, priority: Int) : Hyperion
     private var mReplyExpectedSize = 0
     private var mReplyBodyRead = 0
     private val mReplyBody = ByteArray(MAX_REPLY_SIZE)
+    private val mHeader = ByteArray(HEADER_SIZE)
 
     init {
         mSocket.tcpNoDelay = true // Disable Nagle's algorithm for low latency
@@ -105,18 +106,14 @@ class HyperionFlatBuffers(address: String?, port: Int, priority: Int) : Hyperion
     private fun sendRequest(bb: ByteBuffer) {
         if (isConnected()) {
             val size = bb.remaining()
-            val header = ByteArray(4)
-            header[0] = ((size shr 24) and 0xFF).toByte()
-            header[1] = ((size shr 16) and 0xFF).toByte()
-            header[2] = ((size shr 8) and 0xFF).toByte()
-            header[3] = (size and 0xFF).toByte()
+            mHeader[0] = ((size shr 24) and 0xFF).toByte()
+            mHeader[1] = ((size shr 16) and 0xFF).toByte()
+            mHeader[2] = ((size shr 8) and 0xFF).toByte()
+            mHeader[3] = (size and 0xFF).toByte()
 
             val output = mSocket.getOutputStream()
-            output.write(header)
-
-            val data = ByteArray(bb.remaining())
-            bb[data]
-            output.write(data)
+            output.write(mHeader)
+            output.write(bb.array(), bb.arrayOffset() + bb.position(), size)
             output.flush()
             
             // Don't wait for reply - fire and forget for minimal latency
