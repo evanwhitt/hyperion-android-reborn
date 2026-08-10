@@ -396,10 +396,10 @@ public final class HyperionCodecScreenEncoder extends HyperionScreenEncoderBase 
                 } else {
                     mWhiteFrameCount = 0;
                 }
-                convertYuvToRgb(image, mRgbBuffer, mOutWidth, mOutHeight);
                 if (mAvgColor) {
-                    sendAverageColor();
+                    computeAverageColor(image);
                 } else {
+                    convertYuvToRgb(image, mRgbBuffer, mOutWidth, mOutHeight);
                     mListener.sendFrame(mRgbBuffer, mOutWidth, mOutHeight);
                     markFrameSent();
                 }
@@ -441,14 +441,61 @@ public final class HyperionCodecScreenEncoder extends HyperionScreenEncoderBase 
         return (bright / (double) total) >= WHITE_FILL_RATIO;
     }
 
-    private void sendAverageColor() {
+    private void computeAverageColor(Image image) {
+        Image.Plane[] planes = image.getPlanes();
+        if (planes.length < 2) return;
+
+        Image.Plane yPlane = planes[0];
+        Image.Plane uPlane = planes[1];
+        Image.Plane vPlane = planes.length >= 3 ? planes[2] : planes[1];
+
+        ByteBuffer yBuf = yPlane.getBuffer();
+        ByteBuffer uBuf = uPlane.getBuffer();
+        ByteBuffer vBuf = vPlane.getBuffer();
+
+        final int yRowStride = yPlane.getRowStride();
+        final int yPixelStride = yPlane.getPixelStride();
+        final int uRowStride = uPlane.getRowStride();
+        final int uPixelStride = uPlane.getPixelStride();
+        final int vRowStride = vPlane.getRowStride();
+        final int vPixelStride = vPlane.getPixelStride();
+        final boolean semiPlanar = planes.length < 3;
+        final int yBase = yBuf.position();
+        final int uBase = uBuf.position();
+        final int vBase = vBuf.position();
+
+        Rect crop = image.getCropRect();
+        int cropLeft = Math.max(0, crop.left);
+        int cropTop = Math.max(0, crop.top);
+        int cropW = Math.min(image.getWidth() - cropLeft, crop.width());
+        int cropH = Math.min(image.getHeight() - cropTop, crop.height());
+        if (cropW <= 0 || cropH <= 0) return;
+
         long r = 0, g = 0, b = 0;
         int count = 0;
-        for (int i = 0; i < mRgbBuffer.length; i += 3) {
-            r += mRgbBuffer[i] & 0xFF;
-            g += mRgbBuffer[i + 1] & 0xFF;
-            b += mRgbBuffer[i + 2] & 0xFF;
-            count++;
+        for (int y = cropTop; y < cropTop + cropH; y += 4) {
+            int yOff = yBase + y * yRowStride;
+            int chromaY = y / 2;
+            int uRowOff = uBase + chromaY * uRowStride;
+            int vRowOff = vBase + chromaY * vRowStride;
+            for (int x = cropLeft; x < cropLeft + cropW; x += 4) {
+                int Y = (yBuf.get(yOff + x * yPixelStride) & 0xFF) - (mHdrActive ? mHdrRangeOffset : 16);
+                int chromaX = x / 2;
+                int U = (uBuf.get(uRowOff + chromaX * uPixelStride) & 0xFF) - 128;
+                int V = semiPlanar
+                        ? (uBuf.get(uRowOff + chromaX * uPixelStride + 1) & 0xFF) - 128
+                        : (vBuf.get(vRowOff + chromaX * vPixelStride) & 0xFF) - 128;
+                if (mHdrActive) {
+                    r += mHdrLut[clamp(Y + (377 * V >> 8))] & 0xFF;
+                    g += mHdrLut[clamp(Y - ((42 * U + 146 * V) >> 8))] & 0xFF;
+                    b += mHdrLut[clamp(Y + (482 * U >> 8))] & 0xFF;
+                } else {
+                    r += clamp((298 * Y + 409 * V) >> 8);
+                    g += clamp((298 * Y - 100 * U - 208 * V) >> 8);
+                    b += clamp((298 * Y + 516 * U) >> 8);
+                }
+                count++;
+            }
         }
         if (count > 0) {
             mAvgColorResult[0] = (byte) (r / count);
@@ -515,6 +562,18 @@ public final class HyperionCodecScreenEncoder extends HyperionScreenEncoderBase 
 
         final int stepX = (srcW << 16) / Math.max(1, outWidth);
         final int stepY = (srcH << 16) / Math.max(1, outHeight);
+
+        final int yBase = yBuf.position();
+        final int uBase = uBuf.position();
+        final int vBase = vBuf.position();
+        final byte[] yArr = yBuf.hasArray() ? yBuf.array() : null;
+        final byte[] uArr = uBuf.hasArray() ? uBuf.array() : null;
+        final byte[] vArr = vBuf.hasArray() ? vBuf.array() : null;
+        final int yArrOff = yArr != null ? yBuf.arrayOffset() + yBase : 0;
+        final int uArrOff = uArr != null ? uBuf.arrayOffset() + uBase : 0;
+        final int vArrOff = vArr != null ? vBuf.arrayOffset() + vBase : 0;
+        final boolean arrays = yArr != null && uArr != null && (semiPlanar || vArr != null);
+
         int rgbIdx = 0;
         int fy = srcTop << 16;
         for (int y = 0; y < outHeight; y++) {
@@ -525,15 +584,28 @@ public final class HyperionCodecScreenEncoder extends HyperionScreenEncoderBase 
                 final int srcX = fx >> 16;
                 fx += stepX;
 
-                int yOff = yBuf.position() + srcY * yRowStride + srcX * yPixelStride;
-                int chromaX = srcX / 2;
-                int chromaY = srcY / 2;
-                int uOff = uBuf.position() + chromaY * uRowStride + chromaX * uPixelStride;
-                int vOff = semiPlanar ? uOff + 1 : vBuf.position() + chromaY * vRowStride + chromaX * vPixelStride;
-
-                int Y = (yBuf.get(yOff) & 0xFF) - (mHdrActive ? mHdrRangeOffset : 16);
-                int U = (uBuf.get(uOff) & 0xFF) - 128;
-                int V = (vBuf.get(vOff) & 0xFF) - 128;
+                int Y;
+                int U;
+                int V;
+                if (arrays) {
+                    int o = srcY * yRowStride + srcX * yPixelStride;
+                    int co = (srcY / 2) * uRowStride + (srcX / 2) * uPixelStride;
+                    Y = yArr[yArrOff + o] & 0xFF;
+                    U = (uArr[uArrOff + co] & 0xFF) - 128;
+                    V = semiPlanar
+                            ? (uArr[uArrOff + co + 1] & 0xFF) - 128
+                            : (vArr[vArrOff + (srcY / 2) * vRowStride + (srcX / 2) * vPixelStride] & 0xFF) - 128;
+                } else {
+                    int yOff = yBase + srcY * yRowStride + srcX * yPixelStride;
+                    int chromaX = srcX / 2;
+                    int chromaY = srcY / 2;
+                    int uOff = uBase + chromaY * uRowStride + chromaX * uPixelStride;
+                    int vOff = semiPlanar ? uOff + 1 : vBase + chromaY * vRowStride + chromaX * vPixelStride;
+                    Y = yBuf.get(yOff) & 0xFF;
+                    U = (uBuf.get(uOff) & 0xFF) - 128;
+                    V = (vBuf.get(vOff) & 0xFF) - 128;
+                }
+                Y -= mHdrActive ? mHdrRangeOffset : 16;
 
                 if (mHdrActive) {
                     int rp = Y + (377 * V >> 8);
