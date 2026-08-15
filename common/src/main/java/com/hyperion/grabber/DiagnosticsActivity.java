@@ -7,6 +7,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.graphics.Bitmap;
+import android.graphics.Color;
 import android.os.Bundle;
 import android.view.Gravity;
 import android.view.ViewGroup;
@@ -15,6 +16,7 @@ import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
+import android.widget.Toast;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 
@@ -27,6 +29,8 @@ public class DiagnosticsActivity extends AppCompatActivity {
     private TextView mStats;
     private ImageView mPreview;
     private TextView mLogs;
+    private Button[] mTestButtons;
+    private boolean mConnected;
 
     private final BroadcastReceiver mDiagReceiver = new BroadcastReceiver() {
         @Override
@@ -38,6 +42,8 @@ public class DiagnosticsActivity extends AppCompatActivity {
             int gh = intent.getIntExtra(HyperionScreenService.DIAG_GRID_H, 0);
             float fps = intent.getFloatExtra(HyperionScreenService.DIAG_FPS, 0f);
             boolean connected = intent.getBooleanExtra(HyperionScreenService.DIAG_CONNECTED, false);
+            mConnected = connected;
+            setTestButtonsEnabled(connected);
             byte[] frame = intent.getByteArrayExtra(HyperionScreenService.DIAG_FRAME);
             int fw = intent.getIntExtra(HyperionScreenService.DIAG_FRAME_W, 0);
             int fh = intent.getIntExtra(HyperionScreenService.DIAG_FRAME_H, 0);
@@ -91,10 +97,46 @@ public class DiagnosticsActivity extends AppCompatActivity {
             }
         });
 
+        TextView testTitle = new TextView(this);
+        testTitle.setText(getString(R.string.diagnostics_test_title));
+        testTitle.setTextSize(15);
+        testTitle.setPadding(0, 16, 0, 4);
+
+        LinearLayout testRow = new LinearLayout(this);
+        testRow.setOrientation(LinearLayout.HORIZONTAL);
+        int[] colors = {Color.RED, Color.GREEN, Color.BLUE, Color.WHITE};
+        int[] labels = {
+                R.string.diagnostics_test_red,
+                R.string.diagnostics_test_green,
+                R.string.diagnostics_test_blue,
+                R.string.diagnostics_test_white
+        };
+        mTestButtons = new Button[colors.length + 1];
+        for (int i = 0; i < colors.length; i++) {
+            Button button = new Button(this);
+            button.setText(getString(labels[i]));
+            int color = colors[i];
+            button.setOnClickListener(v -> sendTestColor(color));
+            mTestButtons[i] = button;
+            testRow.addView(button, new LinearLayout.LayoutParams(0,
+                    ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        }
+        Button clear = new Button(this);
+        clear.setText(getString(R.string.diagnostics_test_clear));
+        clear.setOnClickListener(v -> clearTestColor());
+        mTestButtons[colors.length] = clear;
+        testRow.addView(clear, new LinearLayout.LayoutParams(0,
+                ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        setTestButtonsEnabled(false);
+
         root.addView(mStats, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
         root.addView(mPreview, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        root.addView(testTitle, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        root.addView(testRow, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
         root.addView(scroll, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
         root.addView(copy, new LinearLayout.LayoutParams(
@@ -111,6 +153,34 @@ public class DiagnosticsActivity extends AppCompatActivity {
     protected void onDestroy() {
         LocalBroadcastManager.getInstance(this).unregisterReceiver(mDiagReceiver);
         super.onDestroy();
+    }
+
+    private void setTestButtonsEnabled(boolean enabled) {
+        if (mTestButtons == null) return;
+        for (Button button : mTestButtons) {
+            button.setEnabled(enabled);
+        }
+    }
+
+    private void sendTestColor(int color) {
+        if (!mConnected) {
+            Toast.makeText(this, R.string.diagnostics_test_not_connected, Toast.LENGTH_SHORT).show();
+            return;
+        }
+        Intent intent = new Intent(this, HyperionScreenService.class);
+        intent.setAction(HyperionScreenService.ACTION_TEST_COLOR);
+        intent.putExtra(HyperionScreenService.EXTRA_TEST_COLOR, color);
+        startService(intent);
+    }
+
+    private void clearTestColor() {
+        if (!mConnected) {
+            Toast.makeText(this, R.string.diagnostics_test_not_connected, Toast.LENGTH_SHORT).show();
+            return;
+        }
+        Intent intent = new Intent(this, HyperionScreenService.class);
+        intent.setAction(HyperionScreenService.ACTION_TEST_CLEAR);
+        startService(intent);
     }
 
     private static Bitmap rgbToBitmap(byte[] rgb, int w, int h) {

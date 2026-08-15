@@ -10,6 +10,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.pm.ServiceInfo;
+import android.graphics.Color;
 import android.media.projection.MediaProjection;
 import android.media.projection.MediaProjectionManager;
 import android.os.Build;
@@ -48,8 +49,13 @@ public class HyperionScreenService extends Service {
     public static final String ACTION_START = BASE + "ACTION_START";
     public static final String ACTION_STOP = BASE + "ACTION_STOP";
     public static final String ACTION_EXIT = BASE + "ACTION_EXIT";
+    public static final String ACTION_PAUSE = BASE + "ACTION_PAUSE";
+    public static final String ACTION_RESUME = BASE + "ACTION_RESUME";
+    public static final String ACTION_TEST_COLOR = BASE + "ACTION_TEST_COLOR";
+    public static final String ACTION_TEST_CLEAR = BASE + "ACTION_TEST_CLEAR";
     public static final String GET_STATUS = BASE + "ACTION_STATUS";
     public static final String EXTRA_RESULT_CODE = BASE + "EXTRA_RESULT_CODE";
+    public static final String EXTRA_TEST_COLOR = BASE + "EXTRA_TEST_COLOR";
     public static final String DIAG_ACTION = BASE + "ACTION_DIAGNOSTICS";
     public static final String DIAG_METHOD = "method";
     public static final String DIAG_CAPTURE_W = "capture_w";
@@ -64,6 +70,8 @@ public class HyperionScreenService extends Service {
     private static final int NOTIFICATION_ID = 1;
     private static final int NOTIFICATION_EXIT_INTENT_ID = 2;
     private static final int NOTIFICATION_RESTART_INTENT_ID = 3;
+    private static final int NOTIFICATION_PAUSE_INTENT_ID = 4;
+    private static final int NOTIFICATION_RESUME_INTENT_ID = 5;
 
     private boolean mReconnectEnabled = false;
     private boolean mHasConnected = false;
@@ -85,9 +93,11 @@ public class HyperionScreenService extends Service {
     private long mLastFpsPollTimeNs;
     private boolean mRestartPending;
     private boolean mAudioFallback;
+    private boolean mUserPaused;
     private static final long STATUS_UPDATE_MS = 2000;
     private static final long STALL_TIMEOUT_MS = 30_000;
     private static final long WATCHDOG_INTERVAL_MS = 1000;
+    private static final int TEST_COLOR_DURATION_MS = 3000;
 
     private final Runnable mStatusUpdater = new Runnable() {
         @Override
@@ -147,16 +157,16 @@ public class HyperionScreenService extends Service {
         public void onReceive(Context context, Intent intent) {
             switch (Objects.requireNonNull(intent.getAction())) {
                 case Intent.ACTION_SCREEN_ON:
-                    if (mHyperionThread != null) mHyperionThread.resumeConnection();
-                    if (mHyperionEncoder != null) mHyperionEncoder.resumeRecording();
+                    if (!mUserPaused) {
+                        resumeCapture();
+                    }
                     notifyActivity();
                 break;
                 case Intent.ACTION_SCREEN_OFF:
                     if (new Preferences(getBaseContext()).getBoolean(R.string.pref_key_keep_grabbing)) {
                         if (DEBUG) Log.v(TAG, "Screen off but keep-grabbing is enabled");
-                    } else {
-                        if (mHyperionEncoder != null) mHyperionEncoder.pauseRecording();
-                        if (mHyperionThread != null) mHyperionThread.pauseConnection();
+                    } else if (!mUserPaused) {
+                        pauseCapture();
                     }
                 break;
                 case Intent.ACTION_CONFIGURATION_CHANGED:
@@ -238,6 +248,7 @@ public class HyperionScreenService extends Service {
             switch (action) {
                 case ACTION_START:
                     if (mHyperionThread == null) {
+                        mUserPaused = false;
                         boolean isPrepared = prepared();
                         if (isPrepared) {
                             tryStartForeground();
@@ -283,6 +294,25 @@ public class HyperionScreenService extends Service {
                 case ACTION_EXIT:
                     stopScreenRecord();
                     stopSelf();
+                    break;
+                case ACTION_PAUSE:
+                    mUserPaused = true;
+                    pauseCapture();
+                    break;
+                case ACTION_RESUME:
+                    mUserPaused = false;
+                    resumeCapture();
+                    break;
+                case ACTION_TEST_COLOR:
+                    if (mHyperionThread != null) {
+                        int color = intent.getIntExtra(EXTRA_TEST_COLOR, Color.MAGENTA);
+                        mHyperionThread.sendColor(color, TEST_COLOR_DURATION_MS);
+                    }
+                    break;
+                case ACTION_TEST_CLEAR:
+                    if (mHyperionThread != null) {
+                        mHyperionThread.clearLights();
+                    }
                     break;
             }
         }
@@ -414,6 +444,20 @@ public class HyperionScreenService extends Service {
         Intent notificationIntent = new Intent(this, this.getClass());
         notificationIntent.setFlags(Intent.FLAG_RECEIVER_FOREGROUND);
         notificationIntent.setAction(ACTION_EXIT);
+        return notificationIntent;
+    }
+
+    private Intent buildPauseButton() {
+        Intent notificationIntent = new Intent(this, this.getClass());
+        notificationIntent.setFlags(Intent.FLAG_RECEIVER_FOREGROUND);
+        notificationIntent.setAction(ACTION_PAUSE);
+        return notificationIntent;
+    }
+
+    private Intent buildResumeButton() {
+        Intent notificationIntent = new Intent(this, this.getClass());
+        notificationIntent.setFlags(Intent.FLAG_RECEIVER_FOREGROUND);
+        notificationIntent.setAction(ACTION_RESUME);
         return notificationIntent;
     }
 
@@ -657,12 +701,18 @@ public class HyperionScreenService extends Service {
         if (isCommunicating()) {
             text = String.format(java.util.Locale.US, getString(R.string.notification_status_active),
                     w, h, fps);
+            mHyperionNotification.setAction(NOTIFICATION_PAUSE_INTENT_ID,
+                    getString(R.string.notification_pause_button), buildPauseButton());
         } else if (mHyperionEncoder.isCapturing()) {
             text = String.format(java.util.Locale.US, getString(R.string.notification_status_reconnecting),
                     w, h);
+            mHyperionNotification.setAction(NOTIFICATION_PAUSE_INTENT_ID,
+                    getString(R.string.notification_pause_button), buildPauseButton());
         } else {
             text = String.format(java.util.Locale.US, getString(R.string.notification_status_paused),
                     w, h);
+            mHyperionNotification.setAction(NOTIFICATION_RESUME_INTENT_ID,
+                    getString(R.string.notification_resume_button), buildResumeButton());
         }
         try {
             mNotificationManager.notify(NOTIFICATION_ID, mHyperionNotification.buildNotification(text));
@@ -720,6 +770,7 @@ public class HyperionScreenService extends Service {
 
     private void stopScreenRecord() {
         if (DEBUG) Log.v(TAG, "Stopping screen recorder");
+        mUserPaused = false;
         mReconnectEnabled = false;
         mNotificationManager.cancel(NOTIFICATION_ID);
         mHandler.removeCallbacks(mStatusUpdater);
@@ -753,6 +804,30 @@ public class HyperionScreenService extends Service {
 
     boolean isCommunicating() {
         return isCapturing() && mHasConnected;
+    }
+
+    private void pauseCapture() {
+        if (mHyperionEncoder == null) {
+            return;
+        }
+        mHyperionEncoder.pauseRecording();
+        if (mHyperionThread != null) {
+            mHyperionThread.pauseConnection();
+        }
+        updateStatusNotification();
+        notifyActivity();
+    }
+
+    private void resumeCapture() {
+        if (mHyperionEncoder == null) {
+            return;
+        }
+        if (mHyperionThread != null) {
+            mHyperionThread.resumeConnection();
+        }
+        mHyperionEncoder.resumeRecording();
+        updateStatusNotification();
+        notifyActivity();
     }
 
     private void notifyActivity() {

@@ -8,6 +8,7 @@ import android.os.Bundle
 import androidx.leanback.widget.GuidanceStylist
 import androidx.leanback.widget.GuidedAction
 import android.widget.Toast
+import com.hyperion.grabber.ServerProfilesActivity
 import com.hyperion.grabber.common.network.HyperionFlatBuffers
 import com.hyperion.grabber.R
 import com.hyperion.grabber.common.R as CommonR
@@ -45,6 +46,12 @@ internal class BasicSettingsStepFragment : SettingsStepBaseFragment() {
                 getString(CommonR.string.pref_title_port),
                 prefs.getInt(CommonR.string.pref_key_port).toString()
         )
+
+        val profiles = GuidedAction.Builder(context)
+                .id(ACTION_PROFILES)
+                .title(getString(CommonR.string.pref_title_profiles))
+                .description(CommonR.string.pref_summary_profiles)
+                .build()
 
         val enterHorizontalLEDCount = unSignedNumberAction(
                 ACTION_X_LED_COUNT,
@@ -195,6 +202,7 @@ internal class BasicSettingsStepFragment : SettingsStepBaseFragment() {
 
         actions.add(enterHost)
         actions.add(enterPort)
+        actions.add(profiles)
         actions.add(enterHorizontalLEDCount)
         actions.add(enterVerticalLEDCount)
         actions.add(startOnBoot)
@@ -270,6 +278,10 @@ internal class BasicSettingsStepFragment : SettingsStepBaseFragment() {
             startActivity(Intent(activity, com.hyperion.grabber.common.DiagnosticsActivity::class.java))
             return
 
+        } else if (action.id == ACTION_PROFILES) {
+            startActivity(Intent(activity, ServerProfilesActivity::class.java))
+            return
+
         } else if (action.id == ACTION_TEST){
             val colorIdx = testCounter % TEST_COLORS.size
             val color = TEST_COLORS[colorIdx]
@@ -288,6 +300,23 @@ internal class BasicSettingsStepFragment : SettingsStepBaseFragment() {
         }
 
         super.onGuidedActionClicked(action)
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (actions.isEmpty()) return
+        findActionById(ACTION_HOST_NAME)?.let {
+            it.description = prefs.getString(CommonR.string.pref_key_host, null)
+            notifyActionIdChanged(ACTION_HOST_NAME)
+        }
+        findActionById(ACTION_PORT)?.let {
+            it.description = prefs.getInt(CommonR.string.pref_key_port).toString()
+            notifyActionIdChanged(ACTION_PORT)
+        }
+        findActionById(ACTION_MESSAGE_PRIORITY)?.let {
+            it.description = prefs.getString(CommonR.string.pref_key_priority, "100")
+            notifyActionIdChanged(ACTION_MESSAGE_PRIORITY)
+        }
     }
 
     override fun onSubGuidedActionClicked(action: GuidedAction): Boolean {
@@ -323,6 +352,7 @@ internal class BasicSettingsStepFragment : SettingsStepBaseFragment() {
     companion object {
         private const val ACTION_HOST_NAME = 100L
         private const val ACTION_PORT = 110L
+        private const val ACTION_PROFILES = 115L
         private const val ACTION_START_ON_BOOT = 120L
         private const val ACTION_X_LED_COUNT = 130L
         private const val ACTION_Y_LED_COUNT = 140L

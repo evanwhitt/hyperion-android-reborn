@@ -24,7 +24,7 @@ class HyperionThread(
     private val connected = AtomicBoolean(false)
     private val clientRef = AtomicReference<HyperionClient>()
     private val networkExecutor: ExecutorService = Executors.newSingleThreadExecutor()
-    private var useFlatBuffers = protocol != "json"
+    private var useFlatBuffers = usesFlatBuffers(protocol, port)
     private val allowJsonFallback = protocol == "auto"
     
     private val latestFrame = AtomicReference<FrameData>()
@@ -150,6 +150,36 @@ class HyperionThread(
         }
     }
 
+    fun sendColor(color: Int, durationMs: Int) {
+        if (networkExecutor.isShutdown) return
+        networkExecutor.submit {
+            val client = clientRef.get()
+            if (client == null || !client.isConnected()) {
+                return@submit
+            }
+            try {
+                client.setColor(color, priority, durationMs)
+            } catch (e: IOException) {
+                handleError(e)
+            }
+        }
+    }
+
+    fun clearLights() {
+        if (networkExecutor.isShutdown) return
+        networkExecutor.submit {
+            val client = clientRef.get()
+            if (client == null || !client.isConnected()) {
+                return@submit
+            }
+            try {
+                client.clear(priority)
+            } catch (e: IOException) {
+                handleError(e)
+            }
+        }
+    }
+
     private fun createClient(): HyperionClient {
         return if (useFlatBuffers) {
             HyperionFlatBuffers(host, port, priority)
@@ -252,5 +282,11 @@ class HyperionThread(
         private const val FRAME_DURATION = -1
         private const val SHUTDOWN_TIMEOUT_MS = 100
         private const val MAX_RECONNECT_DELAY_MS = 30_000L
+        private const val JSON_PORT = 19444
+
+        @JvmStatic
+        fun usesFlatBuffers(protocol: String, port: Int): Boolean {
+            return protocol != "json" && !(protocol == "auto" && port == JSON_PORT)
+        }
     }
 }

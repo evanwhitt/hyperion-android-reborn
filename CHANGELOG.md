@@ -9,6 +9,13 @@
 
 
 
+# [v5.0.0-beta]
+### Major new features
+- Server profiles for saving and switching between multiple Hyperion installations
+- Diagnostics LED test colors for checking the connection and lighting without leaving the app
+- Pause and resume controls in the foreground notification, with screen-off auto-pause kept separate from a manual pause
+- Automatic protocol selection now uses JSON on the standard 19444 JSON port and FlatBuffers on the standard 19400 port
+
 # [v4.1]
 ### Fixed
 - Codec capture method: on some TV boxes (Amlogic etc.) the screen came through tiny and in the top-left corner because the encoder frame letterboxes the real picture. The active content area is now detected once and auto-cropped. Big thanks to **robin** for the fix ([fork](https://gitea.datadrake.cloud/robin/hyperion-android-reborn-edited))

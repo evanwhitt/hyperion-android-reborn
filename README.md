@@ -18,7 +18,10 @@ Works on Android 5.0+ (API 21+), including Android 12, 13, 14 and anything newer
 - **Capture resolution** setting (Small / Medium / High) so low-RAM devices don't struggle
 - Adjustable capture rate (10-60 fps)
 - Handy extras: send average screen color, audio visualization mode, RGB sync animation
+- Server profiles for switching between several Hyperion installations
+- Live diagnostics with a capture preview, recent logs, and LED test colors
 - Start on boot, auto-reconnect, and a network scanner that finds your Hyperion for you
+- Pause and resume from the foreground notification
 - Three ways to toggle it on/off: a home-screen **widget**, a **quick-settings tile** (phones), and a "Hyperion Grabber (Toggle)" shortcut
 
 ---
@@ -44,18 +47,21 @@ Grab the latest APK from the [Releases page](https://github.com/evanwhitt/hyperi
 4. Tap the power button and accept the **screen recording** prompt.
 5. That's it - your LEDs should follow the screen.
 
-To turn it off, tap the power button again, use the widget/tile, or use the Toggle shortcut.
+To turn it off, tap the power button again, use the widget/tile, or use the Toggle shortcut. While it is running, the foreground notification can pause and resume capture without asking for screen-recording permission again.
 
 ---
 
 ## Settings
 
 - **Hyperion Host / Port** - where your Hyperion server lives (usually port 19400)
+- **Server profiles** - save several host, port, and priority combinations and switch between them
 - **Message Priority** - the priority channel to use (default 100)
 - **Capture Rate** - how many frames per second get sent (10-60)
 - **Capture Method** - Standard, or *Codec (compatibility)* if the screen comes through black
 - **Capture Resolution** - Small / Medium / High. Small is the friendliest for weaker hardware
+- **Server protocol** - Automatic selects JSON on the usual 19444 JSON port and FlatBuffers otherwise; you can still choose either explicitly
 - **Send Average Screen Color** - sends one flat color instead of the whole image
+- **Diagnostics** - shows live capture stats and a preview, copies logs, and provides red/green/blue/white LED tests
 - **Reconnect** - automatically reconnect if the connection drops
 - **Grab on Boot** - start capturing when the device boots up
 

@@ -43,6 +43,8 @@
   <string name="scan_result_alternative_color_button_text">I hate purple</string>
   <!-- Connection settings -->
   <string name="pref_group_connection">Connection</string>
+  <string name="pref_title_profiles">Server profiles</string>
+  <string name="pref_summary_profiles">Save and switch between multiple Hyperion servers</string>
   <string name="pref_title_host">Hyperion Host</string>
   <string name="pref_summary_host">Host your hyperion instance is running on</string>
   <string name="pref_title_port">Hyperion FlatBuffers Port</string>
@@ -84,6 +86,8 @@
   <string name="error_no_host_name_extra">That\'s weird, expected a hostname here</string>
   <string name="notification_channel_label">Hyperion Grabber Notifications</string>
   <string name="notification_description">Currently grabbing screen content</string>
+  <string name="notification_pause_button">Pause</string>
+  <string name="notification_resume_button">Resume</string>
   <string name="notification_status_active">Grabbing · %1$dx%2$d · %3$.1f fps</string>
   <string name="notification_status_reconnecting">Waiting for Hyperion · %1$dx%2$d</string>
   <string name="notification_status_paused">Paused · %1$dx%2$d</string>
@@ -93,6 +97,13 @@
   <string name="notification_audio_button">Audio mode</string>
   <string name="diagnostics_title">Diagnostics</string>
   <string name="diagnostics_copy">Copy logs</string>
+  <string name="diagnostics_test_title">LED test colors</string>
+  <string name="diagnostics_test_red">Red</string>
+  <string name="diagnostics_test_green">Green</string>
+  <string name="diagnostics_test_blue">Blue</string>
+  <string name="diagnostics_test_white">White</string>
+  <string name="diagnostics_test_clear">Clear</string>
+  <string name="diagnostics_test_not_connected">Connect to Hyperion before testing colors</string>
   <string name="pref_title_diagnostics">Diagnostics</string>
   <string name="pref_summary_diagnostics">Live capture stats, a screen preview and recent logs for troubleshooting</string>
    <string name="pref_title_use_avg_color">Send Average Screen Color</string>

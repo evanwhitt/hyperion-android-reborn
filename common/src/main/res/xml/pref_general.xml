@@ -6,6 +6,15 @@
     <PreferenceCategory
         android:title="@string/pref_group_connection">
 
+        <Preference
+            android:key="@string/pref_key_profiles"
+            android:summary="@string/pref_summary_profiles"
+            android:title="@string/pref_title_profiles">
+            <intent android:action="android.intent.action.VIEW"
+                android:targetPackage="com.hyperion.grabber"
+                android:targetClass="com.hyperion.grabber.ServerProfilesActivity" />
+        </Preference>
+
         <EditTextPreference
             android:capitalize="words"
             android:inputType="textCapWords"

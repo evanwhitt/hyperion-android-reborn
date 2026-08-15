@@ -49,6 +49,11 @@
         </activity>
 
         <activity
+            android:name=".ServerProfilesActivity"
+            android:label="@string/profiles_title"
+            android:exported="false" />
+
+        <activity
             android:name="com.hyperion.grabber.tv.activities.NetworkScanActivity"
             android:exported="true"
             android:theme="@style/MyOnboardingTheme" />
