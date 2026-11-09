@@ -105,6 +105,7 @@ public class HyperionScreenService extends Service {
                 case Intent.ACTION_SCREEN_OFF:
                     if (mHyperionEncoder != null) mHyperionEncoder.pauseRecording();
                     if (mHyperionThread != null) mHyperionThread.pauseConnection();
+                    if (mHyperionEncoder != null) mHyperionEncoder.clearLights();
                 break;
                 case Intent.ACTION_CONFIGURATION_CHANGED:
                     if (DEBUG) Log.v(TAG, "ACTION_CONFIGURATION_CHANGED intent received");
